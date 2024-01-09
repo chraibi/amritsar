@@ -30,7 +30,7 @@ exit_areas = [
     #Polygon(
     #    [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]
     #),
-    Polygon( [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]),
+    Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
 ]
 spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
 
@@ -174,13 +174,13 @@ time_scale = 600  # in seconds = 10 min of shooting
 update_time = 20  # in seconds
 speed_threshold = 0.1  #  below this is dead / m/s 
 v0_max = 3  # m/s
-num_reps = 3
+num_reps = 5
 evac_times = {}
 lambda_decays = [1, 5, 10]
 dead = {}
 
 for lambda_decay in lambda_decays:
-    res = Parallel(n_jobs=1)(
+    res = Parallel(n_jobs=-1)(
         delayed(run_simulation)(
             time_scale=time_scale,
             lambda_decay=lambda_decay,
@@ -223,65 +223,9 @@ ax2.errorbar(lambda_decays, means1, yerr=std_devs1, fmt="o-", ecolor="red")
 ax2.set_xlabel("lambda decay")
 ax2.set_ylabel("# dead people")
 plt.tight_layout()
-plt.show()
-
-# %%
-# animate(trajectory_data, pedpy.WalkableArea(walkable_area))
-
-# %%
-# df = trajectory_data.data
-# # Step 1: Filter to the last frame
-# last_frame = df["frame"].max()
-# last_frame_data = df[df["frame"] == last_frame]
-# # Step 2: Check if each agent in the last frame is within the walkable area
-# # Assuming walkable_area is a Shapely Polygon
-
-# in_walkable_area = last_frame_data.apply(
-#     lambda row: walkable_area.contains(Point(row["x"], row["y"])), axis=1
-# )
-
-# # Step 3: Count the number of agents in the walkable area
-# agents_in_walkable_area = in_walkable_area.sum()
-# print(f"Agents still in the area (probably dead by now): {agents_in_walkable_area}")
-
-# %%
-polygon = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
+plt.savefig("result.pdf")
 
 
-# Function to generate a random point within a polygon
-def random_point_in_polygon(poly):
-    min_x, min_y, max_x, max_y = poly.bounds
-    while True:
-        point = Point(random.uniform(min_x, max_x), random.uniform(min_y, max_y))
-        if poly.contains(point):
-            return point
 
-
-# Distribute agents
-num_agents = 10
-lambda_decay = 3
-agents = [random_point_in_polygon(polygon) for _ in range(num_agents)]
-
-# Calculate initial probabilities
-time_elapsed = 0
-time_scale = 10 * 60  # in seconds
-probabilities0 = [
-    calculate_probability(agent, time_elapsed, lambda_decay, time_scale)
-    for agent in agents
-]
-
-# Update probabilities over time
-# For demonstration, let's say time_elapsed increases
-p = [probabilities0[0]]
-
-while time_elapsed < time_scale:
-    time_elapsed += 1  # Increment time
-    probabilities1 = [
-        calculate_probability(agent, time_elapsed, lambda_decay, time_scale)
-        for agent in agents
-    ]
-    p.append(probabilities1[0])
-
-# plt.plot(p,'.')
 
 
