@@ -30,6 +30,7 @@ exit_areas = [
     #Polygon(
     #    [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]
     #),
+   # Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
     Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
 ]
 spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
@@ -80,7 +81,7 @@ def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
     max_distance = max_x - min_x
     distance_factor = distance_to_left / max_distance
     normalized_time = time_elapsed / time_scale
-    distance_factor = 1 - np.exp(-lambda_decay * (distance_to_left / max_distance))
+    distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
     probability = distance_factor * np.exp(-lambda_decay * normalized_time)
     return probability
 
@@ -117,7 +118,7 @@ def run_simulation(
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=walkable_area,
-        dt=0.05,
+        dt=0.01,
         trajectory_writer=jps.SqliteTrajectoryWriter(
             output_file=pathlib.Path(trajectory_file)
         ),
@@ -176,7 +177,7 @@ speed_threshold = 0.1  #  below this is dead / m/s
 v0_max = 3  # m/s
 num_reps = 5
 evac_times = {}
-lambda_decays = [1, 5, 10]
+lambda_decays = [0.5, 1, 2]
 dead = {}
 
 for lambda_decay in lambda_decays:
@@ -200,7 +201,7 @@ for lambda_decay in lambda_decays:
 
 
 # %%
-lambda_decays = [1, 5, 10]
+#lambda_decays = [1, 5, 10]
 mean_evac_times = {scenario: np.mean(times) for scenario, times in evac_times.items()}
 std_dev_evac_times = {scenario: np.std(times) for scenario, times in evac_times.items()}
 
