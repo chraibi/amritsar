@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<geometry version="0.8" caption="corner" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://xsd.jupedsim.org/jps_geometry.xsd" unit="m">
+  <rooms>
+    <room id="0" caption="hall">
+      <subroom id="0" caption="Jaleanwala Bagh" class="Not specified">
+        <polygon caption="wall">
+          <vertex px="146.87" py="0"/>
+          <vertex px="146.87" py="-7.66"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="190.58" py="-7.66"/>
+          <vertex px="196.802" py="21.9229"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="196.802" py="21.9229"/>
+          <vertex px="211.829" py="19.845"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="152.963" py="125.331"/>
+          <vertex px="152.963" py="133.381"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="152.963" py="133.381"/>
+          <vertex px="148.323" py="133.381"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="148.323" py="133.381"/>
+          <vertex px="100.575" py="116.662"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="62.3453" py="116.662"/>
+          <vertex px="58.7163" py="96.6689"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="0" py="0"/>
+          <vertex px="31.8898" py="95.1903"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="31.8898" py="95.1903"/>
+          <vertex px="58.7163" py="96.6689"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="68.8453" py="116.662"/>
+          <vertex px="100.575" py="116.662"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="217.053" py="125.331"/>
+          <vertex px="152.963" py="125.331"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="211.829" py="19.845"/>
+          <vertex px="213.21" py="39.7972"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="213.326" py="41.2927"/>
+          <vertex px="218.553" py="125.331"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="148.37" py="-7.66"/>
+          <vertex px="190.58" py="-7.66"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="146.87" py="0"/>
+          <vertex px="76.87" py="8.6e-15"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="75.37" py="8.8e-15"/>
+          <vertex px="0" py="0"/>
+        </polygon>
+        <polygon caption="wall">
+          <vertex px="62.3453" py="116.662"/>
+          <vertex px="67.3453" py="116.662"/>
+        </polygon>
+        <obstacle id="0" caption="stage" closed="1">
+          <polygon>
+            <vertex px="84" py="90"/>
+            <vertex px="84" py="87"/>
+          </polygon>
+          <polygon>
+            <vertex px="84" py="90"/>
+            <vertex px="89.875" py="90"/>
+          </polygon>
+          <polygon>
+            <vertex px="84" py="87"/>
+            <vertex px="90" py="87"/>
+          </polygon>
+          <polygon>
+            <vertex px="89.875" py="90"/>
+            <vertex px="90" py="87"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="1" caption="samiadmi" closed="1">
+          <polygon>
+            <vertex px="149.842" py="33.3846"/>
+            <vertex px="149.842" py="29.3085"/>
+          </polygon>
+          <polygon>
+            <vertex px="149.842" py="29.3085"/>
+            <vertex px="155.859" py="29.3085"/>
+          </polygon>
+          <polygon>
+            <vertex px="149.842" py="33.3846"/>
+            <vertex px="155.959" py="33.3395"/>
+          </polygon>
+          <polygon>
+            <vertex px="155.959" py="33.3395"/>
+            <vertex px="155.859" py="29.3085"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="2" caption="Tree1" closed="1">
+          <polygon>
+            <vertex px="93.1082" py="106.314"/>
+            <vertex px="93.1082" py="103.984"/>
+          </polygon>
+          <polygon>
+            <vertex px="93.1082" py="103.984"/>
+            <vertex px="97.5472" py="103.984"/>
+          </polygon>
+          <polygon>
+            <vertex px="93.1082" py="106.314"/>
+            <vertex px="97.5472" py="106.203"/>
+          </polygon>
+          <polygon>
+            <vertex px="97.5472" py="106.203"/>
+            <vertex px="97.5472" py="103.984"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="3" caption="Tree2" closed="1">
+          <polygon>
+            <vertex px="99.1009" py="101.653"/>
+            <vertex px="99.1009" py="98.657"/>
+          </polygon>
+          <polygon>
+            <vertex px="99.1009" py="98.657"/>
+            <vertex px="105.204" py="98.657"/>
+          </polygon>
+          <polygon>
+            <vertex px="105.204" py="98.657"/>
+            <vertex px="105.315" py="101.653"/>
+          </polygon>
+          <polygon>
+            <vertex px="99.1009" py="101.653"/>
+            <vertex px="105.315" py="101.653"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="4" caption="Tree3" closed="1">
+          <polygon>
+            <vertex px="107.646" py="96.2155"/>
+            <vertex px="107.646" py="93.1082"/>
+          </polygon>
+          <polygon>
+            <vertex px="107.646" py="93.1082"/>
+            <vertex px="113.861" py="93.2192"/>
+          </polygon>
+          <polygon>
+            <vertex px="113.861" py="93.2192"/>
+            <vertex px="113.861" py="96.3265"/>
+          </polygon>
+          <polygon>
+            <vertex px="107.646" py="96.2155"/>
+            <vertex px="113.861" py="96.3265"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="5" caption="Tree4" closed="1">
+          <polygon>
+            <vertex px="156.248" py="41.1484"/>
+            <vertex px="156.248" py="38.4311"/>
+          </polygon>
+          <polygon>
+            <vertex px="156.248" py="38.4311"/>
+            <vertex px="160.906" py="38.4311"/>
+          </polygon>
+          <polygon>
+            <vertex px="160.906" py="38.4311"/>
+            <vertex px="160.857" py="41.2481"/>
+          </polygon>
+          <polygon>
+            <vertex px="160.857" py="41.2481"/>
+            <vertex px="156.248" py="41.1484"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="6" caption="Tree5" closed="1">
+          <polygon>
+            <vertex px="162.819" py="41.2704"/>
+            <vertex px="162.93" py="38.4013"/>
+          </polygon>
+          <polygon>
+            <vertex px="162.93" py="38.4013"/>
+            <vertex px="167.178" py="38.4565"/>
+          </polygon>
+          <polygon>
+            <vertex px="167.178" py="38.4565"/>
+            <vertex px="167.068" py="41.2704"/>
+          </polygon>
+          <polygon>
+            <vertex px="167.068" py="41.2704"/>
+            <vertex px="162.819" py="41.2704"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="7" caption="Tree6" closed="1">
+          <polygon>
+            <vertex px="168.613" py="39.8358"/>
+            <vertex px="168.668" py="37.0771"/>
+          </polygon>
+          <polygon>
+            <vertex px="168.668" py="37.0771"/>
+            <vertex px="173.358" py="37.0771"/>
+          </polygon>
+          <polygon>
+            <vertex px="173.358" py="37.0771"/>
+            <vertex px="173.247" py="39.891"/>
+          </polygon>
+          <polygon>
+            <vertex px="173.247" py="39.891"/>
+            <vertex px="168.613" py="39.8358"/>
+          </polygon>
+        </obstacle>
+        <obstacle id="8" caption="Tree7" closed="1">
+          <polygon>
+            <vertex px="173.137" py="34.815"/>
+            <vertex px="173.137" py="31.9459"/>
+          </polygon>
+          <polygon>
+            <vertex px="173.137" py="31.9459"/>
+            <vertex px="178.71" py="31.9459"/>
+          </polygon>
+          <polygon>
+            <vertex px="178.71" py="31.9459"/>
+            <vertex px="178.599" py="34.8701"/>
+          </polygon>
+          <polygon>
+            <vertex px="178.599" py="34.8701"/>
+            <vertex px="173.137" py="34.815"/>
+          </polygon>
+        </obstacle>
+      </subroom>
+      <crossings/>
+    </room>
+  </rooms>
+  <transitions>
+    <transition id="0" caption="NaN" type="NaN" room1_id="0" subroom1_id="0" room2_id="-1" subroom2_id="-1">
+      <vertex px="67.3453" py="116.662"/>
+      <vertex px="68.8453" py="116.662"/>
+    </transition>
+    <transition id="1" caption="NaN" type="NaN" room1_id="0" subroom1_id="0" room2_id="-1" subroom2_id="-1">
+      <vertex px="75.37" py="8.8e-15"/>
+      <vertex px="76.87" py="8.6e-15"/>
+    </transition>
+    <transition id="2" caption="NaN" type="NaN" room1_id="0" subroom1_id="0" room2_id="-1" subroom2_id="-1">
+      <vertex px="146.87" py="-7.66"/>
+      <vertex px="148.37" py="-7.66"/>
+    </transition>
+    <transition id="3" caption="NaN" type="NaN" room1_id="0" subroom1_id="0" room2_id="-1" subroom2_id="-1">
+      <vertex px="213.326" py="41.2927"/>
+      <vertex px="213.21" py="39.7972"/>
+    </transition>
+    <transition id="4" caption="NaN" type="NaN" room1_id="0" subroom1_id="0" room2_id="-1" subroom2_id="-1">
+      <vertex px="217.053" py="125.331"/>
+      <vertex px="218.553" py="125.331"/>
+    </transition>
+  </transitions>
+
+</geometry>
