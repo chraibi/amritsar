@@ -27,13 +27,18 @@ exit_areas = [
     Polygon([(67, 116), (68.5, 116), (68.5, 115), (67, 115)]),
     Polygon([(147, -7), (148.5, -7), (148.5, -6), (147, -6)]),
     Polygon([(92, 0), (93.5, 0), (93.5, 1), (92, 1)]),
-    #Polygon(
+    # Polygon(
     #    [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]
-    #),
-   # Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
-    Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
+    # ),
+    # Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
+    Polygon(
+        [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]
+    ),
 ]
-spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
+# small
+#spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
+# big
+spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
 
 # %%
 def distribute_agents(num_agents, seed, spawning_area):
@@ -56,12 +61,13 @@ def distribute_agents(num_agents, seed, spawning_area):
     # ]
     return pos_in_spawning_area
 
+
 # %%
 def plot_simulation_configuration(
     walkable_area, spawning_area, starting_positions, exit_areas
 ):
     axes = pedpy.plot_walkable_area(walkable_area=pedpy.WalkableArea(walkable_area))
-    axes.fill(*spawning_area.exterior.xy, color="lightgrey", alpha=0.2)
+    axes.fill(*intersection(spawning_area, walkable_area).exterior.xy, color="lightgrey", alpha=0.2)
     for exit_area in exit_areas:
         axes.fill(*exit_area.exterior.xy, color="indianred")
     axes.scatter(*zip(*starting_positions), s=1, alpha=0.7)
@@ -69,10 +75,14 @@ def plot_simulation_configuration(
     axes.set_ylabel("y/m")
     axes.set_aspect("equal")
 
-pos_in_spawning_area = distribute_agents(num_agents=100,seed=1, spawning_area=intersection(spawning_area, walkable_area))
+
+pos_in_spawning_area = distribute_agents(
+    num_agents=100, seed=1, spawning_area=intersection(spawning_area, walkable_area)
+)
 plot_simulation_configuration(
     walkable_area, spawning_area, pos_in_spawning_area, exit_areas
 )
+
 
 # %%
 def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
@@ -84,6 +94,7 @@ def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
     distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
     probability = distance_factor * np.exp(-lambda_decay * normalized_time)
     return probability
+
 
 # %%
 def get_nearest_exit_id(
@@ -100,6 +111,7 @@ def get_nearest_exit_id(
 
     return selected_exit_id
 
+
 # %%
 def run_simulation(
     time_scale,
@@ -113,8 +125,14 @@ def run_simulation(
     exit_areas,
     num_agents,
 ):
-    trajectory_file = f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}.sqlite"
-    pos_in_spawning_area = distribute_agents(num_agents=num_agents, seed=seed,spawning_area=spawning_area)
+    trajectory_file = (
+        f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}.sqlite"
+    )
+    pos_in_spawning_area = distribute_agents(
+        num_agents=num_agents,
+        seed=seed,
+        spawning_area=intersection(spawning_area, walkable_area),
+    )
     print(f"lambda decay {lambda_decay}. num_agents: {len(pos_in_spawning_area)}")
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
@@ -170,11 +188,12 @@ def run_simulation(
         simulation.agent_count(),
     )
 
+
 # %%
-num_agents = 5000 # 10000, 20000
+num_agents = 5000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 20  # in seconds
-speed_threshold = 0.1  #  below this is dead / m/s 
+speed_threshold = 0.1  #  below this is dead / m/s
 v0_max = 3  # m/s
 num_reps = 5
 evac_times = {}
@@ -193,13 +212,13 @@ for lambda_decay in lambda_decays:
             walkable_area=walkable_area,
             spawning_area=spawning_area,
             exit_areas=exit_areas,
-            num_agents=num_agents
+            num_agents=num_agents,
         )
         for _ in range(num_reps)
     )
     res = np.array(res)
-    evac_times[lambda_decay] = res[:,0]
-    dead[lambda_decay] = res[:,1]
+    evac_times[lambda_decay] = res[:, 0]
+    dead[lambda_decay] = res[:, 1]
 
 
 # %%
@@ -225,11 +244,7 @@ ax1.set_ylabel("Maximale Simulationszeit [Minuten]")
 ax2.errorbar(lambda_decays, means1, yerr=std_devs1, fmt="o-", ecolor="red")
 ax2.set_xlabel(r"$\lambda$")
 ax2.set_ylabel("Anzahl der Todesfälle")
-#plt.tight_layout()
+# plt.tight_layout()
 
 fig1.savefig(f"result1_{num_agents}.pdf")
 fig2.savefig(f"result2_{num_agents}.pdf")
-
-
-
-
