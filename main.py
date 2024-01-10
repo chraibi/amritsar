@@ -2,7 +2,7 @@
 import jupedsim as jps
 import pedpy
 import read_geometry as rr
-from shapely import Polygon, to_wkt, Point, LinearRing
+from shapely import Polygon, to_wkt, Point, LinearRing, intersection
 import pathlib
 from numpy.random import normal
 import random
@@ -36,7 +36,7 @@ exit_areas = [
 spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
 
 # %%
-def distribute_agents(num_agents, seed):
+def distribute_agents(num_agents, seed, spawning_area):
     threshold_distance = 0.5
     pos_in_spawning_area = jps.distributions.distribute_by_number(
         polygon=spawning_area,
@@ -45,15 +45,15 @@ def distribute_agents(num_agents, seed):
         distance_to_polygon=0.5,
         seed=seed,
     )
-    pos_in_spawning_area = [
-        point
-        for point in pos_in_spawning_area
-        if not any(
-            Polygon(hole).contains(Point(point))
-            or Polygon(hole).distance(Point(point)) < threshold_distance
-            for hole in holes
-        )
-    ]
+    # pos_in_spawning_area = [
+    #     point
+    #     for point in pos_in_spawning_area
+    #     if not any(
+    #         Polygon(hole).contains(Point(point))
+    #         or Polygon(hole).distance(Point(point)) < threshold_distance
+    #         for hole in holes
+    #     )
+    # ]
     return pos_in_spawning_area
 
 # %%
@@ -69,7 +69,7 @@ def plot_simulation_configuration(
     axes.set_ylabel("y/m")
     axes.set_aspect("equal")
 
-pos_in_spawning_area = distribute_agents(num_agents=100,seed=1)
+pos_in_spawning_area = distribute_agents(num_agents=100,seed=1, spawning_area=intersection(spawning_area, walkable_area))
 plot_simulation_configuration(
     walkable_area, spawning_area, pos_in_spawning_area, exit_areas
 )
@@ -109,11 +109,12 @@ def run_simulation(
     v0_max,
     seed,
     walkable_area,
+    spawning_area,
     exit_areas,
     num_agents,
 ):
-    trajectory_file = f"traj/trajectory_N{num_agents}_S{seed}_L{lambda_decay}.sqlite"
-    pos_in_spawning_area = distribute_agents(num_agents=num_agents, seed=seed)
+    trajectory_file = f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}.sqlite"
+    pos_in_spawning_area = distribute_agents(num_agents=num_agents, seed=seed,spawning_area=spawning_area)
     print(f"lambda decay {lambda_decay}. num_agents: {len(pos_in_spawning_area)}")
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
@@ -165,19 +166,19 @@ def run_simulation(
     )
 
     return (
-        simulation.iteration_count() * simulation.delta_time(),
+        simulation.iteration_count() * simulation.delta_time() / 60,
         simulation.agent_count(),
     )
 
 # %%
-num_agents = 5000
+num_agents = 5000 # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 20  # in seconds
 speed_threshold = 0.1  #  below this is dead / m/s 
 v0_max = 3  # m/s
 num_reps = 5
 evac_times = {}
-lambda_decays = [0.5, 1, 2]
+lambda_decays = [0.5, 1, 1.5, 2]
 dead = {}
 
 for lambda_decay in lambda_decays:
@@ -190,6 +191,7 @@ for lambda_decay in lambda_decays:
             v0_max=v0_max,
             seed=random.randint(1, 10000),
             walkable_area=walkable_area,
+            spawning_area=spawning_area,
             exit_areas=exit_areas,
             num_agents=num_agents
         )
@@ -201,7 +203,6 @@ for lambda_decay in lambda_decays:
 
 
 # %%
-#lambda_decays = [1, 5, 10]
 mean_evac_times = {scenario: np.mean(times) for scenario, times in evac_times.items()}
 std_dev_evac_times = {scenario: np.std(times) for scenario, times in evac_times.items()}
 
@@ -214,18 +215,20 @@ std_devs = [std_dev_evac_times[scenario] for scenario in lambda_decays]
 means1 = [mean_dead[scenario] for scenario in lambda_decays]
 std_devs1 = [std_dead[scenario] for scenario in lambda_decays]
 
-fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
-ax1.errorbar(lambda_decays, means, yerr=std_devs, fmt="o-", ecolor="blue")
+fig1, ax1 = plt.subplots(nrows=1, ncols=1)
+fig2, ax2 = plt.subplots(nrows=1, ncols=1)
 
-ax1.set_xlabel("lambda decay")
-ax1.set_ylabel("max simulation time")
+ax1.errorbar(lambda_decays, means, yerr=std_devs, fmt="o-", ecolor="blue")
+ax1.set_xlabel(r"$\lambda$")
+ax1.set_ylabel("Maximale Simulationszeit [Minuten]")
 
 ax2.errorbar(lambda_decays, means1, yerr=std_devs1, fmt="o-", ecolor="red")
-ax2.set_xlabel("lambda decay")
-ax2.set_ylabel("# dead people")
-plt.tight_layout()
-plt.savefig("result.pdf")
+ax2.set_xlabel(r"$\lambda$")
+ax2.set_ylabel("Anzahl der Todesfälle")
+#plt.tight_layout()
 
+fig1.savefig(f"result1_{num_agents}.pdf")
+fig2.savefig(f"result2_{num_agents}.pdf")
 
 
 
