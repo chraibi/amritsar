@@ -162,9 +162,10 @@ def run_simulation(
             )
         )
 
-    time_elapsed = 0
-    simulation.elapsed_time()
+    
+    
     dont_stop = True
+    prob0 = 10
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
         if simulation.elapsed_time() % update_time < 0.01:
@@ -172,9 +173,12 @@ def run_simulation(
             dont_stop = False
             for agent in simulation.agents():
                 prob = calculate_probability(
-                    Point(agent.position), time_elapsed, lambda_decay, time_scale
+                    Point(agent.position), simulation.elapsed_time(), lambda_decay, time_scale
                 )
-                agent.model.v0 *= prob
+                if prob < prob0:
+                    agent.model.v0 *= prob
+                    prob0 = prob
+
                 if agent.model.v0 > threshold and not dont_stop:
                     dont_stop = True
                     # print(simulation.iteration_count(), agent.model.v0)
@@ -190,7 +194,7 @@ def run_simulation(
 
 
 # %%
-num_agents = 5000  # 10000, 20000
+num_agents = 1000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 20  # in seconds
 speed_threshold = 0.1  #  below this is dead / m/s
@@ -243,7 +247,13 @@ ax1.set_ylabel("Maximale Simulationszeit [Minuten]")
 
 ax2.errorbar(lambda_decays, means1, yerr=std_devs1, fmt="o-", ecolor="red")
 ax2.set_xlabel(r"$\lambda$")
-ax2.set_ylabel("Anzahl der Todesfälle")
+ax2.set_ylabel("Anzahl der am Boden Liegenden")
+
+ax2.set_xticks(lambda_decays)
+ax1.set_xticks(lambda_decays)
+ax2.grid(alpha=0.1)
+ax1.grid(alpha=0.1)
+
 # plt.tight_layout()
 
 fig1.savefig(f"result1_{num_agents}.pdf")
