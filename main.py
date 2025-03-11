@@ -36,9 +36,10 @@ exit_areas = [
     ),
 ]
 # small
-#spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
+# spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
 # big
 spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
+
 
 # %%
 def distribute_agents(num_agents, seed, spawning_area):
@@ -67,7 +68,11 @@ def plot_simulation_configuration(
     walkable_area, spawning_area, starting_positions, exit_areas
 ):
     axes = pedpy.plot_walkable_area(walkable_area=pedpy.WalkableArea(walkable_area))
-    axes.fill(*intersection(spawning_area, walkable_area).exterior.xy, color="lightgrey", alpha=0.2)
+    axes.fill(
+        *intersection(spawning_area, walkable_area).exterior.xy,
+        color="lightgrey",
+        alpha=0.2,
+    )
     for exit_area in exit_areas:
         axes.fill(*exit_area.exterior.xy, color="indianred")
     axes.scatter(*zip(*starting_positions), s=1, alpha=0.7)
@@ -162,34 +167,46 @@ def run_simulation(
             )
         )
 
-    
-    
+    # **Tracking fallen agents over time**
+    fallen_over_time = []
+    time_series = []
     dont_stop = True
-    prob0 = 10
+    prob0 = 10  #  this ensures that an agent's speed is only reduced once per worsening condition
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
         if simulation.elapsed_time() % update_time < 0.01:
-            # print(f"Iteration: {simulation.iteration_count()}")
             dont_stop = False
+            num_fallen = 0
             for agent in simulation.agents():
                 prob = calculate_probability(
-                    Point(agent.position), simulation.elapsed_time(), lambda_decay, time_scale
+                    Point(agent.position),
+                    simulation.elapsed_time(),
+                    lambda_decay,
+                    time_scale,
                 )
+                if agent.model.v0 < threshold:
+                    num_fallen += 1
+
                 if prob < prob0:
                     agent.model.v0 *= prob
                     prob0 = prob
 
                 if agent.model.v0 > threshold and not dont_stop:
                     dont_stop = True
-                    # print(simulation.iteration_count(), agent.model.v0)
+
+            # Record fallen agent count at this time step
+            fallen_over_time.append(num_fallen)
+            time_series.append(simulation.elapsed_time())
 
     print(
-        f"evacuation time: {simulation.iteration_count() * simulation.delta_time():.2f} s. Still in: {simulation.agent_count()}"
+        f"evacuation time: {simulation.elapsed_time():.2f} s. Still in: {simulation.agent_count()}"
     )
 
     return (
-        simulation.iteration_count() * simulation.delta_time() / 60,
+        simulation.elapsed_time() / 60,
         simulation.agent_count(),
+        time_series,
+        fallen_over_time,
     )
 
 
@@ -223,6 +240,10 @@ for lambda_decay in lambda_decays:
     res = np.array(res)
     evac_times[lambda_decay] = res[:, 0]
     dead[lambda_decay] = res[:, 1]
+    fallen_time_series[lambda_decay] = (
+        res[:, 2],
+        res[:, 3],
+    )  # Time steps, fallen agents
 
 
 # %%
@@ -243,11 +264,11 @@ fig2, ax2 = plt.subplots(nrows=1, ncols=1)
 
 ax1.errorbar(lambda_decays, means, yerr=std_devs, fmt="o-", ecolor="blue")
 ax1.set_xlabel(r"$\lambda$")
-ax1.set_ylabel("Maximale Simulationszeit [Minuten]")
+ax1.set_ylabel("max. simulation itme [min]")
 
 ax2.errorbar(lambda_decays, means1, yerr=std_devs1, fmt="o-", ecolor="red")
 ax2.set_xlabel(r"$\lambda$")
-ax2.set_ylabel("Anzahl der am Boden Liegenden")
+ax2.set_ylabel("Number of agents lying on the ground")
 
 ax2.set_xticks(lambda_decays)
 ax1.set_xticks(lambda_decays)
@@ -258,3 +279,25 @@ ax1.grid(alpha=0.1)
 
 fig1.savefig(f"result1_{num_agents}.pdf")
 fig2.savefig(f"result2_{num_agents}.pdf")
+
+fig3, ax3 = plt.subplots(figsize=(8, 5))
+
+for lambda_decay in lambda_decays:
+    time_series, fallen_series = fallen_time_series[lambda_decay]
+    mean_fallen = np.mean(np.array(fallen_series), axis=0)
+    std_fallen = np.std(np.array(fallen_series), axis=0)
+
+    ax3.plot(
+        time_series[0], mean_fallen, label=f"$\lambda = {lambda_decay}$", linestyle="-"
+    )
+    ax3.fill_between(
+        time_series[0], mean_fallen - std_fallen, mean_fallen + std_fallen, alpha=0.2
+    )
+
+ax3.set_xlabel("Time (seconds)")
+ax3.set_ylabel("New Fallen Agents per Time Step")
+ax3.set_title("Time Series of Fallen Agents")
+ax3.legend()
+ax3.grid(alpha=0.3)
+
+fig3.savefig(f"fallen_agents_time_series_{num_agents}.pdf")
