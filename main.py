@@ -9,15 +9,15 @@ import random
 import numpy as np
 from typing import List
 import matplotlib.pyplot as plt
-from jupedsim.internal.notebook_utils import animate, read_sqlite_file
 import random
 from joblib import Parallel, delayed
+import time
 
 # %%
 wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
 
 # %%
-# simulation might start with less than that, cause we will finlter out some bad positions
+# simulation might start with less than that, cause we will filter out some bad positions
 walkable_area0 = wkt[0]
 holes = walkable_area0.interiors[1:]
 holes.append(LinearRing([(84, 90), (84, 87), (90, 87), (90, 90), (84, 90)]))
@@ -138,7 +138,11 @@ def run_simulation(
         seed=seed,
         spawning_area=intersection(spawning_area, walkable_area),
     )
-    print(f"lambda decay {lambda_decay}. num_agents: {len(pos_in_spawning_area)}")
+
+    print(
+        f"[INFO] Starting simulation with λ={lambda_decay}, {num_agents} agents, seed={seed}"
+    )
+    start_time = time.time()
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=walkable_area,
@@ -174,6 +178,10 @@ def run_simulation(
     prob0 = 10  #  this ensures that an agent's speed is only reduced once per worsening condition
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
+        if simulation.iteration_count() % 5000 == 0:
+            print(
+                f"[INFO] Iteration {simulation.iteration_count()}, Time: {simulation.elapsed_time():.2f}s, Agents remaining: {simulation.agent_count()}"
+            )
         if simulation.elapsed_time() % update_time < 0.01:
             dont_stop = False
             num_fallen = 0
@@ -199,9 +207,12 @@ def run_simulation(
             time_series.append(simulation.elapsed_time())
 
     print(
-        f"evacuation time: {simulation.elapsed_time():.2f} s. Still in: {simulation.agent_count()}"
+        f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed."
     )
-
+    execution_time = time.time() - start_time
+    print(
+        f"[INFO] Simulation finished: λ={lambda_decay}, Evacuation time: {simulation.iteration_count() * simulation.delta_time():.2f}s, Still in: {simulation.agent_count()}. Execution time: {execution_time:.2f}s"
+    )
     return (
         simulation.elapsed_time() / 60,
         simulation.agent_count(),
@@ -218,9 +229,9 @@ speed_threshold = 0.1  #  below this is dead / m/s
 v0_max = 3  # m/s
 num_reps = 5
 evac_times = {}
-lambda_decays = [0.5, 1, 1.5, 2]
+lambda_decays = [0.8, 1]  # [0.5, 1, 1.5, 2]
 dead = {}
-
+fallen_time_series = {}
 for lambda_decay in lambda_decays:
     res = Parallel(n_jobs=-1)(
         delayed(run_simulation)(
@@ -237,13 +248,13 @@ for lambda_decay in lambda_decays:
         )
         for _ in range(num_reps)
     )
-    res = np.array(res)
-    evac_times[lambda_decay] = res[:, 0]
-    dead[lambda_decay] = res[:, 1]
+    res = list(res)
+    evac_times[lambda_decay] = [r[0] for r in res]  # Extract evacuation times
+    dead[lambda_decay] = [r[1] for r in res]  # Extract number of fallen agents
     fallen_time_series[lambda_decay] = (
-        res[:, 2],
-        res[:, 3],
-    )  # Time steps, fallen agents
+        [r[2] for r in res],
+        [r[3] for r in res],
+    )  # Extract time series
 
 
 # %%
@@ -288,7 +299,7 @@ for lambda_decay in lambda_decays:
     std_fallen = np.std(np.array(fallen_series), axis=0)
 
     ax3.plot(
-        time_series[0], mean_fallen, label=f"$\lambda = {lambda_decay}$", linestyle="-"
+        time_series[0], mean_fallen, label=rf"$\lambda = {lambda_decay}$", linestyle="-"
     )
     ax3.fill_between(
         time_series[0], mean_fallen - std_fallen, mean_fallen + std_fallen, alpha=0.2
