@@ -1,17 +1,27 @@
-# %%
+"""This script runs a simulation of a crowd evacuation scenario with agents that can fall down due to shooting.
+
+The agents' speed is reduced based on the distance to the exit and the time elapsed.
+The simulation is run for different values of λ (lambda) which controls the rate of speed reduction.
+The simulation is run multiple times to get an average evacuation time and number of fallen agents.
+
+The time series of fallen agents is also plotted.
+"""
+
 import jupedsim as jps
 import pedpy
 import read_geometry as rr
-from shapely import Polygon, to_wkt, Point, LinearRing, intersection
+from shapely import Polygon, Point, LinearRing, intersection
 import pathlib
 from numpy.random import normal
 import random
 import numpy as np
-from typing import List
+from typing import List, Tuple
 import matplotlib.pyplot as plt
-import random
+
 from joblib import Parallel, delayed
 import time
+
+from scipy.interpolate import interp1d
 
 # %%
 wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
@@ -21,19 +31,21 @@ wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
 walkable_area0 = wkt[0]
 holes = walkable_area0.interiors[1:]
 holes.append(LinearRing([(84, 90), (84, 87), (90, 87), (90, 90), (84, 90)]))
+holes.append(LinearRing([(170, 80), (171, 80), (171, 81), (170, 81), (170, 80)]))
+holes.append(LinearRing([(100, 40), (101, 40), (101, 41), (100, 41), (100, 40)]))
 walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
 exit_areas = [
     Polygon([(216, 124), (217.5, 124), (217.5, 123), (216, 123)]),
     Polygon([(67, 116), (68.5, 116), (68.5, 115), (67, 115)]),
     Polygon([(147, -7), (148.5, -7), (148.5, -6), (147, -6)]),
     Polygon([(92, 0), (93.5, 0), (93.5, 1), (92, 1)]),
+    Polygon(
+        [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]
+    ),
     # Polygon(
     #    [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]
     # ),
     # Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
-    Polygon(
-        [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]
-    ),
 ]
 # small
 # spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
@@ -43,7 +55,6 @@ spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
 
 # %%
 def distribute_agents(num_agents, seed, spawning_area):
-    threshold_distance = 0.5
     pos_in_spawning_area = jps.distributions.distribute_by_number(
         polygon=spawning_area,
         number_of_agents=num_agents,
@@ -51,15 +62,6 @@ def distribute_agents(num_agents, seed, spawning_area):
         distance_to_polygon=0.5,
         seed=seed,
     )
-    # pos_in_spawning_area = [
-    #     point
-    #     for point in pos_in_spawning_area
-    #     if not any(
-    #         Polygon(hole).contains(Point(point))
-    #         or Polygon(hole).distance(Point(point)) < threshold_distance
-    #         for hole in holes
-    #     )
-    # ]
     return pos_in_spawning_area
 
 
@@ -89,47 +91,95 @@ plot_simulation_configuration(
 )
 
 
-# %%
 def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
+    """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
     min_x, _, max_x, _ = walkable_area.bounds
     distance_to_left = point.x - min_x
+    # todo: add some min distance then people may be initially a bit further from the danger line
     max_distance = max_x - min_x
     distance_factor = distance_to_left / max_distance
     normalized_time = time_elapsed / time_scale
+    time_factor = np.exp(-lambda_decay * normalized_time)
     distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
-    probability = distance_factor * np.exp(-lambda_decay * normalized_time)
+    noise = np.random.uniform(0.95, 1.05)  # ±5% noise
+    probability = distance_factor * time_factor * noise
     return probability
 
 
-# %%
 def get_nearest_exit_id(
-    position: Point, exit_areas: List[Polygon], exit_ids: List[int]
-) -> int:
-    """Returns the nearest exit to the position."""
-    min_distance = float("inf")
-    selected_exit_id = None
-    for exit_id, exit_area in zip(exit_ids, exit_areas):
-        distance = Point(position).distance(exit_area)
-        if distance < min_distance:
-            min_distance = distance
-            selected_exit_id = exit_id
+    position: Point,
+    exit_areas: List[Polygon],
+    exit_ids: List[int],
+    journey_ids: List[int],
+    randomness_strength: float = 1.0,
+) -> Tuple[int, int, float]:
+    """
+    Return a random exit ID and its distance, with bias toward the nearest exit.
 
-    return selected_exit_id
+    Args:
+        position: The agent's current position.
+        exit_areas: List of exit polygons.
+        exit_ids: List of exit IDs corresponding to exit_areas.
+        randomness_strength: Controls how strongly randomness affects exit selection.
+                             Higher values make selection more random.
+
+    Returns:
+        Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
+    """
+    distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
+    min_distance = min(distances)
+    if randomness_strength < 0.01:
+        # Always select the nearest exit
+        min_distance = min(distances)
+        selected_exit_id = exit_ids[distances.index(min_distance)]
+        selected_journey_id = journey_ids[distances.index(min_distance)]
+        selected_distance = min_distance
+    else:
+        # Use distance-based probabilities
+        probabilities = 1 / (np.array(distances) + 1e-6) ** randomness_strength
+        probabilities /= probabilities.sum()  # Normalize
+        selected_exit_id = np.random.choice(exit_ids, p=probabilities)
+        selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]
+        selected_distance = distances[exit_ids.index(selected_exit_id)]
+
+    return selected_journey_id, selected_exit_id, selected_distance
 
 
-# %%
+def apply_exit_flow_control(
+    agent,
+    factor,
+    exit_areas: List[Polygon],
+    exit_ids: List[int],
+    journey_ids: List[int],
+    damping_radius=5,
+    randomness_strength_exits=0,
+):
+    """Smooth Flow Control."""
+    position = Point(agent.position)
+    _, _, nearest_exit_distance = get_nearest_exit_id(
+        position, exit_areas, exit_ids, journey_ids=journey_ids
+    )
+    if nearest_exit_distance < damping_radius:
+        damping_factor = max(factor, 1 - nearest_exit_distance / damping_radius)
+        agent.model.v0 *= damping_factor
+
+
 def run_simulation(
     time_scale,
     lambda_decay,
     update_time,
     threshold,
     v0_max,
+    recovery_factor,
+    damping_factor,
+    randomness_strength_exits,
     seed,
     walkable_area,
     spawning_area,
     exit_areas,
     num_agents,
 ):
+    """Run simulation logic."""
     trajectory_file = (
         f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}.sqlite"
     )
@@ -157,14 +207,25 @@ def run_simulation(
         exit_id = simulation.add_exit_stage(exit_area)
         exit_ids.append(exit_id)
 
-    journey_id = simulation.add_journey(jps.JourneyDescription(exit_ids))
+    journey_ids = [
+        simulation.add_journey(jps.JourneyDescription([exit_id]))
+        for exit_id in exit_ids
+    ]
+
     num_agents = len(pos_in_spawning_area)
     v_distribution = normal(v0_max, 0.05, num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
+        journey_id, exit_id, _ = get_nearest_exit_id(
+            pos,
+            exit_areas,
+            exit_ids,
+            journey_ids,
+            randomness_strength=randomness_strength_exits,
+        )
         simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
                 journey_id=journey_id,
-                stage_id=get_nearest_exit_id(pos, exit_areas, exit_ids),
+                stage_id=exit_id,
                 position=pos,
                 v0=v0,
                 radius=0.15,
@@ -175,40 +236,57 @@ def run_simulation(
     fallen_over_time = []
     time_series = []
     dont_stop = True
-    prob0 = 10  #  this ensures that an agent's speed is only reduced once per worsening condition
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
-        if simulation.iteration_count() % 5000 == 0:
-            print(
-                f"[INFO] Iteration {simulation.iteration_count()}, Time: {simulation.elapsed_time():.2f}s, Agents remaining: {simulation.agent_count()}"
-            )
         if simulation.elapsed_time() % update_time < 0.01:
             dont_stop = False
             num_fallen = 0
-            for agent in simulation.agents():
-                prob = calculate_probability(
-                    Point(agent.position),
-                    simulation.elapsed_time(),
-                    lambda_decay,
-                    time_scale,
-                )
+            for agent, v0 in zip(simulation.agents(), v_distribution):
+                # prob = calculate_probability(
+                #     Point(agent.position),
+                #     simulation.elapsed_time(),
+                #     lambda_decay,
+                #     time_scale,
+                # )
+
+                prob = 1
+                agent.model.v0 = v0 * prob
                 if agent.model.v0 < threshold:
                     num_fallen += 1
-
-                if prob < prob0:
-                    agent.model.v0 *= prob
-                    prob0 = prob
+                else:
+                    agent.model.v0 *= recovery_factor
 
                 if agent.model.v0 > threshold and not dont_stop:
                     dont_stop = True
+
+                # change randomly journey
+                new_journey_id, new_exit_id, _ = get_nearest_exit_id(
+                    agent.position,
+                    exit_areas,
+                    exit_ids,
+                    journey_ids,
+                    randomness_strength=randomness_strength_exits * 0.1,
+                )
+                simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
             # Record fallen agent count at this time step
             fallen_over_time.append(num_fallen)
             time_series.append(simulation.elapsed_time())
 
-    print(
-        f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed."
-    )
+            # Reduce speed near exits to simulate restricted exits
+            apply_exit_flow_control(
+                agent,
+                factor=damping_factor,
+                exit_areas=exit_areas,
+                exit_ids=exit_ids,
+                journey_ids=journey_ids,
+                damping_radius=5,
+                randomness_strength_exits=0,
+            )
+            print(
+                f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed."
+            )
+
     execution_time = time.time() - start_time
     print(
         f"[INFO] Simulation finished: λ={lambda_decay}, Evacuation time: {simulation.iteration_count() * simulation.delta_time():.2f}s, Still in: {simulation.agent_count()}. Execution time: {execution_time:.2f}s"
@@ -221,15 +299,22 @@ def run_simulation(
     )
 
 
-# %%
+# ================================= MODEL PARAMETERS =========
 num_agents = 1000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
-update_time = 20  # in seconds
-speed_threshold = 0.1  #  below this is dead / m/s
-v0_max = 3  # m/s
-num_reps = 5
+update_time = 10  # in seconds
+# 0.1  #  below this is dead / m/s
+v0_max = 1  # m/s
+# Add some variability to avoid synchronized agent falls
+speed_threshold = v0_max * 0.2 + np.random.uniform(-0.1, 0.1)
+recovery_factor = 1.0
+damping_factor = 0.2
+randomness_strength_exits = 1.0
+lambda_decays = [1]  # , 0.5, 1]
+num_reps = 1
+# ============================================================
 evac_times = {}
-lambda_decays = [0.8, 1]  # [0.5, 1, 1.5, 2]
+
 dead = {}
 fallen_time_series = {}
 for lambda_decay in lambda_decays:
@@ -240,6 +325,9 @@ for lambda_decay in lambda_decays:
             update_time=update_time,
             threshold=speed_threshold,
             v0_max=v0_max,
+            randomness_strength_exits=randomness_strength_exits,
+            recovery_factor=recovery_factor,
+            damping_factor=damping_factor,
             seed=random.randint(1, 10000),
             walkable_area=walkable_area,
             spawning_area=spawning_area,
@@ -293,19 +381,42 @@ fig2.savefig(f"result2_{num_agents}.pdf")
 
 fig3, ax3 = plt.subplots(figsize=(8, 5))
 
+
+def interpolate_series(time_series_list, fallen_series_list, common_time_points):
+    """Interpolates all time series to have the same time points."""
+    interpolated_values = []
+    for times, values in zip(time_series_list, fallen_series_list):
+        interp_func = interp1d(
+            times, values, kind="linear", bounds_error=False, fill_value=0
+        )
+        interpolated_values.append(interp_func(common_time_points))
+    return np.array(interpolated_values)
+
+
+print("Plotting time series of fallen agents...")
 for lambda_decay in lambda_decays:
     time_series, fallen_series = fallen_time_series[lambda_decay]
-    mean_fallen = np.mean(np.array(fallen_series), axis=0)
-    std_fallen = np.std(np.array(fallen_series), axis=0)
-
+    common_time_points = np.linspace(0, max(time_series[0]), num=100)
+    interpolated_fallen_series = interpolate_series(
+        time_series, fallen_series, common_time_points
+    )
+    mean_fallen = np.mean(interpolated_fallen_series, axis=0)
+    std_fallen = np.std(interpolated_fallen_series, axis=0)
     ax3.plot(
-        time_series[0], mean_fallen, label=rf"$\lambda = {lambda_decay}$", linestyle="-"
+        common_time_points,
+        mean_fallen,
+        label=rf"$\lambda = {lambda_decay}$",
+        linestyle="-",
     )
     ax3.fill_between(
-        time_series[0], mean_fallen - std_fallen, mean_fallen + std_fallen, alpha=0.2
+        common_time_points,
+        mean_fallen - std_fallen,
+        mean_fallen + std_fallen,
+        alpha=0.2,
     )
 
-ax3.set_xlabel("Time (seconds)")
+
+ax3.set_xlabel("Time [seconds]")
 ax3.set_ylabel("New Fallen Agents per Time Step")
 ax3.set_title("Time Series of Fallen Agents")
 ax3.legend()
