@@ -17,10 +17,10 @@ import random
 import numpy as np
 from typing import List, Tuple
 import matplotlib.pyplot as plt
-
+from collections import defaultdict
 from joblib import Parallel, delayed
 import time
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import interp1d
 
 # %%
@@ -239,8 +239,13 @@ def run_simulation(
     time_series = []
     dont_stop = True
     # Create a list to track agents near exits
-    near_exit_flag = [False] * len(list(simulation.agents()))
+
+    fallen_status = {agent.id: False for agent in simulation.agents()}
+    near_exit_flag = {agent.id: False for agent in simulation.agents()}
+    v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
+
     last_update_time = -update_time  # Track last update
+    causality_locations = defaultdict(int)
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
         elapsed_time = simulation.elapsed_time()
@@ -249,8 +254,10 @@ def run_simulation(
             last_update_time = elapsed_time  # Update the last processed time
             dont_stop = False
             num_fallen = 0
-            for i, agent in enumerate(simulation.agents()):
-                v0 = v_distribution[i]
+            active_agents = 0
+            for agent in simulation.agents():
+                agent_id = agent.id
+                initial_v0 = v_distribution[agent_id]
                 prob = calculate_probability(
                     Point(agent.position),
                     simulation.elapsed_time(),
@@ -258,15 +265,39 @@ def run_simulation(
                     time_scale,
                 )
 
-                agent.model.v0 = v0 * prob
-                if agent.model.v0 < threshold and not near_exit_flag[i]:
+                base_speed = initial_v0 * prob
+                if base_speed < threshold and not fallen_status[agent.id]:
                     num_fallen += 1
-                else:
-                    agent.model.v0 *= recovery_factor
+                    fallen_status[agent.id] = True
+                    agent.model.v0 = 0
+                    v_distribution[agent_id] = 0
+                    grid_x, grid_y = (
+                        int(agent.position[0] // 5),
+                        int(agent.position[1] // 5),
+                    )  # 5-unit grid
+                    causality_locations[(grid_x, grid_y)] += 1
 
-                if agent.model.v0 > threshold and not dont_stop:
+                # Apply exit damping ONLY to non-fallen agents
+                elif not fallen_status[agent.id]:
+                    v0_at_exit, is_near_exit = apply_exit_flow_control(
+                        agent,
+                        factor=damping_factor,
+                        exit_areas=exit_areas,
+                        exit_ids=exit_ids,
+                        journey_ids=journey_ids,
+                        damping_radius=20,
+                        randomness_strength_exits=0,
+                    )
+                    if is_near_exit:
+                        v_distribution[agent_id] = v0_at_exit
+                        agent.model.v0 = max(v0_at_exit, threshold)
+                    else:
+                        agent.model.v0 = base_speed
+                    # Track active agents
+                    active_agents += 1
+
+                if agent.model.v0 > threshold or near_exit_flag[agent_id]:
                     dont_stop = True
-
                 # change randomly journey
                 new_journey_id, new_exit_id, _ = get_nearest_exit_id(
                     agent.position,
@@ -277,29 +308,14 @@ def run_simulation(
                 )
                 # Change Journeys: Randomly based on distance
                 simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
-                # Reduce speed near exits to simulate restricted exits
-                v0_at_exit, is_near_exit = apply_exit_flow_control(
-                    agent,
-                    factor=damping_factor,
-                    exit_areas=exit_areas,
-                    exit_ids=exit_ids,
-                    journey_ids=journey_ids,
-                    damping_radius=20,
-                    randomness_strength_exits=0,
-                )
-                # Mark the agent as near an exit if applicable
-                near_exit_flag[i] = is_near_exit
-                if is_near_exit:
-                    v_distribution[i] = v0_at_exit
-                    # Keep speed above threshold
-                    agent.model.v0 = max(v0_at_exit, threshold * 1.1)
 
             # Record fallen agent count at this time step
             fallen_over_time.append(num_fallen)
             time_series.append(simulation.elapsed_time())
+            exited = num_agents - simulation.agent_count()
 
             print(
-                f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed. Still in {simulation.agent_count()}"
+                f"[INFO] Time {simulation.elapsed_time():.2f}s: Num fallen {num_fallen}. Active: {active_agents} Exited: {exited}, Fallen status: {sum(fallen_status.values())}. Still in {simulation.agent_count()}"
             )
 
     execution_time = time.time() - start_time
@@ -311,6 +327,7 @@ def run_simulation(
         simulation.agent_count(),
         time_series,
         fallen_over_time,
+        causality_locations,
     )
 
 
@@ -332,6 +349,7 @@ evac_times = {}
 
 dead = {}
 fallen_time_series = {}
+cl = {}
 for lambda_decay in lambda_decays:
     res = Parallel(n_jobs=-1)(
         delayed(run_simulation)(
@@ -358,6 +376,7 @@ for lambda_decay in lambda_decays:
         [r[2] for r in res],
         [r[3] for r in res],
     )  # Extract time series
+    cl[lambda_decay] = [r[4] for r in res]
 
 
 # %%
@@ -412,32 +431,71 @@ print("Plotting time series of fallen agents...")
 for lambda_decay in lambda_decays:
     print(f"Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
-    common_time_points = np.linspace(0, max(time_series[0]), num=100)
-    interpolated_fallen_series = interpolate_series(
-        time_series, fallen_series, common_time_points
-    )
-    mean_fallen = np.mean(interpolated_fallen_series, axis=0)
-    std_fallen = np.std(interpolated_fallen_series, axis=0)
-    print(mean_fallen)
-    print(std_fallen)
+    print(fallen_series)
     ax3.plot(
-        common_time_points,
-        mean_fallen,
+        time_series[0],
+        fallen_series[0],
         label=rf"$\lambda = {lambda_decay}$",
         linestyle="-",
     )
-    ax3.fill_between(
-        common_time_points,
-        mean_fallen - std_fallen,
-        mean_fallen + std_fallen,
-        alpha=0.2,
+    cumulative_fallen = np.cumsum(fallen_series[0])
+    ax3.plot(
+        time_series[0],
+        cumulative_fallen,
+        label=rf"Cumulative $\lambda = {lambda_decay}$",
+        linestyle="--",
     )
 
 
 ax3.set_xlabel("Time [seconds]")
 ax3.set_ylabel("New Fallen Agents per Time Step")
-ax3.set_title(f"Fallen Agents: {np.sum(mean_fallen)}")
+ax3.set_title(f"Fallen Agents: {int(np.sum(fallen_series[0]))}")
+
 ax3.legend()
 ax3.grid(alpha=0.3)
 
 fig3.savefig(f"fallen_agents_time_series_{num_agents}.pdf")
+
+for lambda_decay in lambda_decays:
+    fig4, ax4 = plt.subplots(figsize=(8, 10))
+    min_x, min_y, max_x, max_y = walkable_area.bounds
+
+    grid_size_x = int(max_x // 5)  # Scale down grid for visualization
+    grid_size_y = int(max_y // 5)
+
+    # Initialize the casualty grid
+    casualty_grid = np.zeros((grid_size_x, grid_size_y))
+    casualty_locations = cl[lambda_decay]
+
+    for (x, y), count in casualty_locations[0].items():
+        grid_x = int(x // 5)  # Scale coordinates for grid
+        grid_y = int(y // 5)
+        if 0 <= x < grid_size_x and 0 <= y < grid_size_y:
+            casualty_grid[x, y] += count
+
+    # Plot heatmap
+    im = ax4.imshow(
+        casualty_grid.T,
+        cmap="jet",
+        origin="lower",
+        interpolation="nearest",  # "lanczos"
+    )
+    divider = make_axes_locatable(ax4)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = fig4.colorbar(im, cax=cax, label="Number of Fallen Agents")
+    # cbar.set_ticks(
+    #     np.arange(0, np.max(casualty_grid) + 1, step=2)
+    # )  # Ensure only integer labels
+    print(np.max(casualty_grid) + 1)
+
+    cbar.ax.yaxis.set_major_formatter(
+        plt.FuncFormatter(lambda x, _: f"{int(x)}")
+    )  # Format as int
+
+    ax4.set_xlabel("Grid X Coordinate")
+    ax4.set_ylabel("Grid Y Coordinate")
+    ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay})")
+
+    # Save heatmap
+    fig4.savefig(f"Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf")
+    plt.close(fig4)
