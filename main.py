@@ -154,14 +154,16 @@ def apply_exit_flow_control(
     damping_radius=5,
     randomness_strength_exits=0,
 ):
-    """Smooth Flow Control."""
+    """Return damped exit v0 and flag if near exit."""
     position = Point(agent.position)
     _, _, nearest_exit_distance = get_nearest_exit_id(
         position, exit_areas, exit_ids, journey_ids=journey_ids
     )
     if nearest_exit_distance < damping_radius:
         damping_factor = max(factor, 1 - nearest_exit_distance / damping_radius)
-        agent.model.v0 *= damping_factor
+        return agent.model.v0 * damping_factor, True
+    else:
+        return agent.model.v0, False
 
 
 def run_simulation(
@@ -236,22 +238,28 @@ def run_simulation(
     fallen_over_time = []
     time_series = []
     dont_stop = True
+    # Create a list to track agents near exits
+    near_exit_flag = [False] * len(list(simulation.agents()))
+    last_update_time = -update_time  # Track last update
     while simulation.agent_count() > 0 and dont_stop:
         simulation.iterate()
-        if simulation.elapsed_time() % update_time < 0.01:
+        elapsed_time = simulation.elapsed_time()
+        # Ensure we only update at exact `update_time` intervals
+        if (elapsed_time // update_time) > (last_update_time // update_time):
+            last_update_time = elapsed_time  # Update the last processed time
             dont_stop = False
             num_fallen = 0
-            for agent, v0 in zip(simulation.agents(), v_distribution):
-                # prob = calculate_probability(
-                #     Point(agent.position),
-                #     simulation.elapsed_time(),
-                #     lambda_decay,
-                #     time_scale,
-                # )
+            for i, agent in enumerate(simulation.agents()):
+                v0 = v_distribution[i]
+                prob = calculate_probability(
+                    Point(agent.position),
+                    simulation.elapsed_time(),
+                    lambda_decay,
+                    time_scale,
+                )
 
-                prob = 1
                 agent.model.v0 = v0 * prob
-                if agent.model.v0 < threshold:
+                if agent.model.v0 < threshold and not near_exit_flag[i]:
                     num_fallen += 1
                 else:
                     agent.model.v0 *= recovery_factor
@@ -265,26 +273,33 @@ def run_simulation(
                     exit_areas,
                     exit_ids,
                     journey_ids,
-                    randomness_strength=randomness_strength_exits * 0.1,
+                    randomness_strength=randomness_strength_exits * 2,
                 )
+                # Change Journeys: Randomly based on distance
                 simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
+                # Reduce speed near exits to simulate restricted exits
+                v0_at_exit, is_near_exit = apply_exit_flow_control(
+                    agent,
+                    factor=damping_factor,
+                    exit_areas=exit_areas,
+                    exit_ids=exit_ids,
+                    journey_ids=journey_ids,
+                    damping_radius=20,
+                    randomness_strength_exits=0,
+                )
+                # Mark the agent as near an exit if applicable
+                near_exit_flag[i] = is_near_exit
+                if is_near_exit:
+                    v_distribution[i] = v0_at_exit
+                    # Keep speed above threshold
+                    agent.model.v0 = max(v0_at_exit, threshold * 1.1)
 
             # Record fallen agent count at this time step
             fallen_over_time.append(num_fallen)
             time_series.append(simulation.elapsed_time())
 
-            # Reduce speed near exits to simulate restricted exits
-            apply_exit_flow_control(
-                agent,
-                factor=damping_factor,
-                exit_areas=exit_areas,
-                exit_ids=exit_ids,
-                journey_ids=journey_ids,
-                damping_radius=5,
-                randomness_strength_exits=0,
-            )
             print(
-                f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed."
+                f"[INFO] Time {simulation.elapsed_time():.2f}s: {num_fallen} agents have collapsed. Still in {simulation.agent_count()}"
             )
 
     execution_time = time.time() - start_time
@@ -300,17 +315,17 @@ def run_simulation(
 
 
 # ================================= MODEL PARAMETERS =========
-num_agents = 1000  # 10000, 20000
+num_agents = 5000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 # 0.1  #  below this is dead / m/s
-v0_max = 1  # m/s
+v0_max = 3  # m/s
 # Add some variability to avoid synchronized agent falls
-speed_threshold = v0_max * 0.2 + np.random.uniform(-0.1, 0.1)
+speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
 recovery_factor = 1.0
-damping_factor = 0.2
+damping_factor = 0.8
 randomness_strength_exits = 1.0
-lambda_decays = [1]  # , 0.5, 1]
+lambda_decays = [0.5]  # , 0.5, 1]
 num_reps = 1
 # ============================================================
 evac_times = {}
@@ -395,6 +410,7 @@ def interpolate_series(time_series_list, fallen_series_list, common_time_points)
 
 print("Plotting time series of fallen agents...")
 for lambda_decay in lambda_decays:
+    print(f"Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
     common_time_points = np.linspace(0, max(time_series[0]), num=100)
     interpolated_fallen_series = interpolate_series(
@@ -402,6 +418,8 @@ for lambda_decay in lambda_decays:
     )
     mean_fallen = np.mean(interpolated_fallen_series, axis=0)
     std_fallen = np.std(interpolated_fallen_series, axis=0)
+    print(mean_fallen)
+    print(std_fallen)
     ax3.plot(
         common_time_points,
         mean_fallen,
@@ -418,7 +436,7 @@ for lambda_decay in lambda_decays:
 
 ax3.set_xlabel("Time [seconds]")
 ax3.set_ylabel("New Fallen Agents per Time Step")
-ax3.set_title("Time Series of Fallen Agents")
+ax3.set_title(f"Fallen Agents: {np.sum(mean_fallen)}")
 ax3.legend()
 ax3.grid(alpha=0.3)
 
