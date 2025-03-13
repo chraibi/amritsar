@@ -335,10 +335,9 @@ def run_simulation(
 num_agents = 5000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
-# 0.1  #  below this is dead / m/s
 v0_max = 3  # m/s
 # Add some variability to avoid synchronized agent falls
-speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
+speed_threshold = v0_max * 0.05 + np.random.uniform(-0.1, 0.1)
 recovery_factor = 1.0
 damping_factor = 0.8
 randomness_strength_exits = 1.0
