@@ -56,8 +56,16 @@ exit_areas = [
 spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
 
 
-# %%
+def convert_seconds_to_hms(seconds):
+    """Convert seconds to hours, minutes, and remaining seconds."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    remaining_seconds = seconds % 60
+    return hours, minutes, remaining_seconds
+
+
 def distribute_agents(num_agents, seed, spawning_area):
+    """Distribute agents in spawning area."""
     pos_in_spawning_area = jps.distributions.distribute_by_number(
         polygon=spawning_area,
         number_of_agents=num_agents,
@@ -322,9 +330,11 @@ def run_simulation(
             )
 
     execution_time = time.time() - start_time
+    hours, minutes, seconds = convert_seconds_to_hms(execution_time)
     print(
-        f"[INFO] Simulation finished: λ={lambda_decay}, Evacuation time: {simulation.iteration_count() * simulation.delta_time():.2f}s, Still in: {simulation.agent_count()}. Execution time: {execution_time:.2f}s"
+        f"[INFO] Simulation finished: λ={lambda_decay}, Execution time: {hours} h {minutes} min {seconds:.1f} s"
     )
+
     return (
         simulation.elapsed_time() / 60,
         simulation.agent_count(),
@@ -436,7 +446,7 @@ fig4, ax4 = plt.subplots(figsize=(10, 6))
 colors = plt.cm.viridis(np.linspace(0, 1, len(lambda_decays)))
 color = "gray"
 for i, lambda_decay in enumerate(lambda_decays):
-    print(f"Lambda {lambda_decay}")
+    print(f"Plot with Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
     for time_serie, fallen_serie in zip(time_series, fallen_series):
         ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
