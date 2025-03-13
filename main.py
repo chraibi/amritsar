@@ -17,6 +17,7 @@ import random
 import numpy as np
 from typing import List, Tuple
 import matplotlib.pyplot as plt
+import os
 from collections import defaultdict
 from joblib import Parallel, delayed
 import time
@@ -25,6 +26,8 @@ from scipy.interpolate import interp1d
 
 # %%
 wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
+output_dir = "fig_results"
+os.makedirs(output_dir, exist_ok=True)
 
 # %%
 # simulation might start with less than that, cause we will filter out some bad positions
@@ -332,17 +335,17 @@ def run_simulation(
 
 
 # ================================= MODEL PARAMETERS =========
-num_agents = 5000  # 10000, 20000
+num_agents = 500  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 v0_max = 3  # m/s
 # Add some variability to avoid synchronized agent falls
-speed_threshold = v0_max * 0.05 + np.random.uniform(-0.1, 0.1)
+speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
 recovery_factor = 1.0
 damping_factor = 0.8
 randomness_strength_exits = 1.0
 lambda_decays = [0.5]  # , 0.5, 1]
-num_reps = 1
+num_reps = 3
 # ============================================================
 evac_times = {}
 
@@ -409,8 +412,8 @@ ax1.grid(alpha=0.1)
 
 # plt.tight_layout()
 
-fig1.savefig(f"result1_{num_agents}.pdf")
-fig2.savefig(f"result2_{num_agents}.pdf")
+fig1.savefig(f"{output_dir}/result1_{num_agents}.pdf")
+fig2.savefig(f"{output_dir}/result2_{num_agents}.pdf")
 
 fig3, ax3 = plt.subplots(figsize=(8, 5))
 
@@ -426,75 +429,93 @@ def interpolate_series(time_series_list, fallen_series_list, common_time_points)
     return np.array(interpolated_values)
 
 
-print("Plotting time series of fallen agents...")
-for lambda_decay in lambda_decays:
+fig4, ax4 = plt.subplots(figsize=(10, 6))
+
+# Get a colormap with distinct colors
+
+colors = plt.cm.viridis(np.linspace(0, 1, len(lambda_decays)))
+color = "gray"
+for i, lambda_decay in enumerate(lambda_decays):
     print(f"Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
-    print(fallen_series)
+    for time_serie, fallen_serie in zip(time_series, fallen_series):
+        ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
+        cumulative_fallen = np.cumsum(fallen_serie)
+        ax3.plot(
+            time_serie,
+            cumulative_fallen,
+            color=color,
+            alpha=0.3,
+            linewidth=0.8,
+            linestyle="--",
+        )
+
+    representative_time = time_series[0]
+    representative_fallen = fallen_series[0]
+    representative_cumulative_fallen = np.cumsum(fallen_series[0])
     ax3.plot(
-        time_series[0],
-        fallen_series[0],
+        representative_time,
+        representative_fallen,
         label=rf"$\lambda = {lambda_decay}$",
-        linestyle="-",
-    )
-    cumulative_fallen = np.cumsum(fallen_series[0])
-    ax3.plot(
-        time_series[0],
-        cumulative_fallen,
-        label=rf"Cumulative $\lambda = {lambda_decay}$",
-        linestyle="--",
+        color=color,
+        linewidth=2,
     )
 
+    ax3.plot(
+        representative_time,
+        representative_cumulative_fallen,
+        label=rf"Cumulative $\lambda = {lambda_decay}$",
+        color=color,
+        linestyle="--",
+        linewidth=2,
+    )
 
 ax3.set_xlabel("Time [seconds]")
 ax3.set_ylabel("New Fallen Agents per Time Step")
-ax3.set_title(f"Fallen Agents: {int(np.sum(fallen_series[0]))}")
-
-ax3.legend()
+ax3.set_title(rf"Fallen Agents $\approx$ {int(np.sum(fallen_series[0]))}")
 ax3.grid(alpha=0.3)
-
-fig3.savefig(f"fallen_agents_time_series_{num_agents}.pdf")
+ax3.legend()
+plt.tight_layout()
+fig3.savefig(f"{output_dir}/fallen_agents_time_series_{num_agents}.pdf")
 
 for lambda_decay in lambda_decays:
-    fig4, ax4 = plt.subplots(figsize=(8, 10))
     min_x, min_y, max_x, max_y = walkable_area.bounds
 
     grid_size_x = int(max_x // 5)  # Scale down grid for visualization
     grid_size_y = int(max_y // 5)
 
     # Initialize the casualty grid
-    casualty_grid = np.zeros((grid_size_x, grid_size_y))
-    casualty_locations = cl[lambda_decay]
+    causality_locations = cl[lambda_decay]
+    for ic, causality_location in enumerate(causality_locations):
+        fig4, ax4 = plt.subplots(figsize=(8, 10))
+        causality_grid = np.zeros((grid_size_x, grid_size_y))
+        for (x, y), count in causality_location.items():
+            grid_x = int(x // 5)  # Scale coordinates for grid
+            grid_y = int(y // 5)
+            if 0 <= x < grid_size_x and 0 <= y < grid_size_y:
+                causality_grid[x, y] += count
 
-    for (x, y), count in casualty_locations[0].items():
-        grid_x = int(x // 5)  # Scale coordinates for grid
-        grid_y = int(y // 5)
-        if 0 <= x < grid_size_x and 0 <= y < grid_size_y:
-            casualty_grid[x, y] += count
+        # Plot heatmap
+        im = ax4.imshow(
+            causality_grid.T, cmap="jet", origin="lower", interpolation="lanczos"
+        )
+        divider = make_axes_locatable(ax4)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig4.colorbar(im, cax=cax, label="Number of Fallen Agents")
+        cbar.ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{int(x)}")
+        )  # Format as int
+        vmin, vmax = np.min(causality_grid), np.max(causality_grid)
+        cbar.set_ticks(np.linspace(vmin, vmax, num=2))  # Set 5 evenly spaced ticks
 
-    # Plot heatmap
-    im = ax4.imshow(
-        casualty_grid.T,
-        cmap="jet",
-        origin="lower",
-        interpolation="nearest",  # "lanczos"
-    )
-    divider = make_axes_locatable(ax4)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = fig4.colorbar(im, cax=cax, label="Number of Fallen Agents")
-    # cbar.set_ticks(
-    #     np.arange(0, np.max(casualty_grid) + 1, step=2)
-    # )  # Ensure only integer labels
-    print(np.max(casualty_grid) + 1)
-
-    cbar.ax.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, _: f"{int(x)}")
-    )  # Format as int
-
-    ax4.set_xlabel("Grid X Coordinate")
-    ax4.set_ylabel("Grid Y Coordinate")
-    ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay})")
-
-    # Save heatmap
-    fig4.savefig(f"Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf")
-    plt.close(fig4)
+        ax4.set_xlabel("X [m]")
+        ax4.set_ylabel("Y [m]")
+        ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay})")
+        # Save heatmap
+        fig4.savefig(
+            f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}_{ic:03d}.png",
+            dpi=300,
+            bbox_inches="tight",
+            pad_inches=0.1,
+        )
+        plt.close(fig4)
