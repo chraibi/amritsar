@@ -255,7 +255,9 @@ def run_simulation(
 
     last_update_time = -update_time  # Track last update
     causality_locations = defaultdict(int)
-    while simulation.agent_count() > 0 and dont_stop:
+    while (
+        simulation.agent_count() > 0 and dont_stop and simulation.elapsed_time() <= 600
+    ):
         simulation.iterate()
         elapsed_time = simulation.elapsed_time()
         # Ensure we only update at exact `update_time` intervals
@@ -343,7 +345,7 @@ def run_simulation(
 
 
 # ================================= MODEL PARAMETERS =========
-num_agents = 100  # 10000, 20000
+num_agents = 5000  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 v0_max = 3  # m/s
@@ -353,7 +355,7 @@ recovery_factor = 1.0
 damping_factor = 0.8
 randomness_strength_exits = 1.0
 lambda_decays = [0.5]  # , 0.5, 1]
-num_reps = 3
+num_reps = 10
 # ============================================================
 evac_times = {}
 
