@@ -1,7 +1,17 @@
+"""Plot the results of the simulation"""
+# Usage: python plot_results.py <pickle file>
+# 1. Evacuation time vs lambda
+# 2. Number of dead agents vs lambda
+# 3. Time series of fallen agents
+# 4. Heatmap of fallen agents
+# 5. GIF of heatmap sequence
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from scipy.interpolate import interp1d
 import read_geometry as rr
+from PIL import Image
+import glob
+
 
 from sys import argv
 import sys
@@ -77,7 +87,9 @@ fig4, ax4 = plt.subplots(figsize=(10, 6))
 
 colors = plt.cm.viridis(np.linspace(0, 1, len(lambda_decays)))
 color = "gray"
+output_file_stats = f"{output_dir}/fallen_agents_stats_{num_agents}.txt"
 for i, lambda_decay in enumerate(lambda_decays):
+    sums = []
     print(f"Plot with Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
     for time_serie, fallen_serie in zip(time_series, fallen_series):
@@ -91,16 +103,18 @@ for i, lambda_decay in enumerate(lambda_decays):
             linewidth=0.8,
             linestyle="--",
         )
+        sums.append(np.sum(fallen_serie))
 
-    representative_time = time_series[0]
-    representative_fallen = fallen_series[0]
-    representative_cumulative_fallen = np.cumsum(fallen_series[0])
-    ax3.plot(
-        representative_time,
-        representative_fallen,
-        label=rf"$\lambda = {lambda_decay}$",
-        color=color,
-        linewidth=2,
+    # Find the index of the longest time series
+    longest_index = np.argmax([len(ts) for ts in time_series])
+    # Use the longest series as the representative
+    representative_time = time_series[longest_index]
+    representative_fallen = fallen_series[longest_index]
+    representative_cumulative_fallen = np.cumsum(fallen_series[longest_index])
+    mean_fallen = int(np.mean(sums))
+    std_fallen = int(np.std(sums))
+    ax3.set_title(
+        rf"Fallen Agents $\approx$ {mean_fallen} $\pm$ {std_fallen}  (N={num_agents})"
     )
 
     ax3.plot(
@@ -111,10 +125,14 @@ for i, lambda_decay in enumerate(lambda_decays):
         linestyle="--",
         linewidth=2,
     )
+    with open(output_file_stats, "w") as f:
+        f.write(f"{lambda_decay},{mean_fallen},{std_fallen},{num_agents}")
+    print(">> ", output_file_stats)
 
 ax3.set_xlabel("Time [seconds]")
 ax3.set_ylabel("New Fallen Agents per Time Step")
-ax3.set_title(rf"Fallen Agents $\approx$ {int(np.sum(fallen_series[0]))}")
+# ax3.set_title(rf"Fallen Agents $\approx$ {int(np.sum(fallen_series[0]))}")
+
 ax3.grid(alpha=0.3)
 ax3.legend()
 plt.tight_layout()
@@ -152,7 +170,7 @@ for lambda_decay in lambda_decays:
 
         ax4.set_xlabel("X [m]")
         ax4.set_ylabel("Y [m]")
-        ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay})")
+        ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay}, N={num_agents})")
         # Save heatmap
         fig4.savefig(
             f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}_{ic:03d}.png",
@@ -161,3 +179,19 @@ for lambda_decay in lambda_decays:
             pad_inches=0.1,
         )
         plt.close(fig4)
+
+# Load images
+print("make gif")
+image_files = sorted(
+    glob.glob(f"{output_dir}/Casualty_Locations_{num_agents}_lambda_0.5_*.png")
+)
+
+images = [Image.open(img) for img in image_files]
+
+# Save as GIF
+output_gif = f"{output_dir}/Casualty_Locations_{num_agents}.gif"
+images[0].save(
+    output_gif, save_all=True, append_images=images[1:], duration=100, loop=0
+)
+
+print(f"GIF saved as {output_gif}")
