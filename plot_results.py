@@ -80,7 +80,7 @@ fig1.savefig(f"{output_dir}/result1_{num_agents}.pdf")
 fig2.savefig(f"{output_dir}/result2_{num_agents}.pdf")
 
 fig3, ax3 = plt.subplots(figsize=(8, 5))
-
+# heatmaps
 fig4, ax4 = plt.subplots(figsize=(10, 6))
 
 # Get a colormap with distinct colors
@@ -93,7 +93,7 @@ for i, lambda_decay in enumerate(lambda_decays):
     print(f"Plot with Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
     for time_serie, fallen_serie in zip(time_series, fallen_series):
-        ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
+        # ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
         cumulative_fallen = np.cumsum(fallen_serie)
         ax3.plot(
             time_serie,
@@ -116,15 +116,15 @@ for i, lambda_decay in enumerate(lambda_decays):
     ax3.set_title(
         rf"Fallen Agents $\approx$ {mean_fallen} $\pm$ {std_fallen}  (N={num_agents})"
     )
-
     ax3.plot(
         representative_time,
         representative_cumulative_fallen,
         label=rf"Cumulative $\lambda = {lambda_decay}$",
         color=color,
-        linestyle="--",
+        linestyle="-",
         linewidth=2,
     )
+
     with open(output_file_stats, "w") as f:
         f.write(f"{lambda_decay},{mean_fallen},{std_fallen},{num_agents}")
     print(">> ", output_file_stats)
