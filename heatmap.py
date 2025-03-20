@@ -1,3 +1,6 @@
+"""
+This script generates a sequence of heatmaps showing the probability of survival.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -21,7 +24,14 @@ output_dir = "heatmap_frames"
 os.makedirs(output_dir, exist_ok=True)
 
 # Lambda values for the heatmap sequence
-lambda_values = np.linspace(0.05, 2.0, 50)  # 10 frames
+
+lambda_values1 = np.linspace(0.05, 2.0, 50)
+lambda_values2 = np.linspace(2.0, 0.5, 50)  # Corrected linspace
+
+lambda_values = np.concatenate(
+    (lambda_values1, lambda_values2)
+)  # Correct concatenation
+
 fig_width, fig_height = 10, 10  # Inches
 dpi = 150  # Resolution
 

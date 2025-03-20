@@ -1,0 +1,8 @@
+.qodo
+*tree~
+png
+heatmap_frames
+fig_results
+backup
+__pycache__*
+.vscode

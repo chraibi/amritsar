@@ -130,7 +130,8 @@ def get_nearest_exit_id(
         exit_areas: List of exit polygons.
         exit_ids: List of exit IDs corresponding to exit_areas.
         randomness_strength: Controls how strongly randomness affects exit selection.
-                             Higher values make selection more random.
+        The higher the randomness factor, the more deterministic the choice becomes
+        (favoring the nearest exit)
 
     Returns:
         Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
@@ -191,9 +192,7 @@ def run_simulation(
     num_agents,
 ):
     """Run simulation logic."""
-    trajectory_file = (
-        f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}.sqlite"
-    )
+    trajectory_file = f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}_rand_{randomness_strength_exits}.sqlite"
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
         seed=seed,
@@ -353,12 +352,11 @@ v0_max = 3  # m/s
 speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
 recovery_factor = 1.0
 damping_factor = 0.8
-randomness_strength_exits = 1.0
-lambda_decays = [0.5]  # , 0.5, 1]
-num_reps = 10
+randomness_strength_exits = 1
+lambda_decays = [0.1, 0.4, 0.5]  # , 0.5, 1]
+num_reps = 5
 # ============================================================
 evac_times = {}
-
 dead = {}
 fallen_time_series = {}
 cl = {}
@@ -390,7 +388,8 @@ for lambda_decay in lambda_decays:
     )  # Extract time series
     cl[lambda_decay] = [r[4] for r in res]
 
-save_path = f"{output_dir}/simulation_data_{num_agents}.pkl"
+timestamp = time.strftime("%Y%m%d_%H%M%S")
+save_path = f"{output_dir}/simulation_data_{num_agents}_{timestamp}.pkl"
 data_to_save = {
     "evac_times": evac_times,
     "dead": dead,

@@ -17,6 +17,7 @@ from sys import argv
 import sys
 import pickle
 import numpy as np
+import re
 
 if len(argv) == 1:
     sys.exit(f"Usage {argv[0]} pickle file")
@@ -24,7 +25,13 @@ if len(argv) == 1:
 save_path = argv[1]
 output_dir = "fig_results"
 
-num_agents = save_path.split("_")[-1].split(".")[0]
+# num_agents = save_path.split("_")[-1].split(".")[0]
+
+match = re.search(r"simulation_data_(\d+)_\d+", save_path)
+
+# Get the number of agents if found
+num_agents = int(match.group(1)) if match else None
+
 print(f"{num_agents = }")
 
 
@@ -156,8 +163,14 @@ for lambda_decay in lambda_decays:
                 causality_grid[x, y] += count
 
         # Plot heatmap
+        vmin, vmax = np.min(causality_grid), np.max(causality_grid)
         im = ax4.imshow(
-            causality_grid.T, cmap="jet", origin="lower", interpolation="lanczos"
+            causality_grid.T,
+            cmap="jet",
+            vmin=vmin,
+            vmax=vmax,
+            origin="lower",
+            interpolation="lanczos",
         )
         divider = make_axes_locatable(ax4)
         cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -165,7 +178,6 @@ for lambda_decay in lambda_decays:
         cbar.ax.yaxis.set_major_formatter(
             plt.FuncFormatter(lambda x, _: f"{int(x)}")
         )  # Format as int
-        vmin, vmax = np.min(causality_grid), np.max(causality_grid)
         cbar.set_ticks(np.linspace(vmin, vmax, num=2))  # Set 5 evenly spaced ticks
 
         ax4.set_xlabel("X [m]")
