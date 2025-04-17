@@ -11,7 +11,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import read_geometry as rr
 from PIL import Image
 import glob
-
+import pedpy
+from shapely import Polygon, Point, LinearRing, intersection
 
 from sys import argv
 import sys
@@ -36,8 +37,13 @@ print(f"{num_agents = }")
 
 
 wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
-walkable_area = wkt[0]
-
+# walkable_area = wkt[0]
+walkable_area0 = wkt[0]
+holes = walkable_area0.interiors[1:]
+holes.append(LinearRing([(84, 90), (84, 87), (90, 87), (90, 90), (84, 90)]))
+holes.append(LinearRing([(170, 80), (171, 80), (171, 81), (170, 81), (170, 80)]))
+holes.append(LinearRing([(100, 40), (101, 40), (101, 41), (100, 41), (100, 40)]))
+walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
 
 # Load the saved data
 with open(save_path, "rb") as f:
@@ -146,7 +152,13 @@ plt.tight_layout()
 fig3.savefig(f"{output_dir}/fallen_agents_time_series_{num_agents}.pdf")
 
 for lambda_decay in lambda_decays:
+    x_resolution = 350
+    y_resolution = 350
     min_x, min_y, max_x, max_y = walkable_area.bounds
+    x = np.linspace(min_x, max_x, x_resolution)
+    y = np.linspace(min_y, max_y, y_resolution)
+    xx, yy = np.meshgrid(x, y)
+    grid_points = np.vstack((xx.flatten(), yy.flatten())).T
 
     grid_size_x = int(max_x // 5)  # Scale down grid for visualization
     grid_size_y = int(max_y // 5)
@@ -164,13 +176,21 @@ for lambda_decay in lambda_decays:
 
         # Plot heatmap
         vmin, vmax = np.min(causality_grid), np.max(causality_grid)
+        eps = 0.5
         im = ax4.imshow(
             causality_grid.T,
+            extent=(min_x - eps, max_x + eps, min_y - eps, max_y + eps),
             cmap="jet",
             vmin=vmin,
             vmax=vmax,
             origin="lower",
             interpolation="lanczos",
+        )
+        pedpy.plot_walkable_area(
+            walkable_area=pedpy.WalkableArea(walkable_area),
+            line_width=2,
+            line_color="white",
+            axes=ax4,
         )
         divider = make_axes_locatable(ax4)
         cax = divider.append_axes("right", size="5%", pad=0.05)

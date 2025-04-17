@@ -107,6 +107,7 @@ if len(sys.argv) < 2:
 
 
 output_path = sys.argv[1]
+print(output_path)
 trajectory_data, walkable_area = read_sqlite_file(output_path)
 output_file = pathlib.Path(output_path).stem + ".txt"
 geometry_file = "Jaleanwala_Bagh.xml"
