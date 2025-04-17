@@ -106,6 +106,7 @@ def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
     distance_to_left = point.x - min_x
     # todo: add some min distance then people may be initially a bit further from the danger line
     max_distance = max_x - min_x
+    print(f"Distance to left: {distance_to_left}, Max distance: {max_distance}")
     distance_factor = distance_to_left / max_distance
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
@@ -120,7 +121,7 @@ def get_nearest_exit_id(
     exit_areas: List[Polygon],
     exit_ids: List[int],
     journey_ids: List[int],
-    randomness_strength: float = 1.0,
+    determinism_strength: float = 1.0,
 ) -> Tuple[int, int, float]:
     """
     Return a random exit ID and its distance, with bias toward the nearest exit.
@@ -129,28 +130,28 @@ def get_nearest_exit_id(
         position: The agent's current position.
         exit_areas: List of exit polygons.
         exit_ids: List of exit IDs corresponding to exit_areas.
-        randomness_strength: Controls how strongly randomness affects exit selection.
-        The higher the randomness factor, the more deterministic the choice becomes
+        determinism_strength: Controls how strongly randomness affects exit selection.
+        The higher the determinism factor, the more deterministic the choice becomes
         (favoring the nearest exit)
 
     Returns:
         Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
     """
     distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
-    min_distance = min(distances)
-    if randomness_strength < 0.01:
-        # Always select the nearest exit
-        min_distance = min(distances)
-        selected_exit_id = exit_ids[distances.index(min_distance)]
-        selected_journey_id = journey_ids[distances.index(min_distance)]
-        selected_distance = min_distance
-    else:
-        # Use distance-based probabilities
-        probabilities = 1 / (np.array(distances) + 1e-6) ** randomness_strength
-        probabilities /= probabilities.sum()  # Normalize
-        selected_exit_id = np.random.choice(exit_ids, p=probabilities)
-        selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]
-        selected_distance = distances[exit_ids.index(selected_exit_id)]
+    # min_distance = min(distances)
+    # if determinism_strength < 0.01:
+    #     # Always select the nearest exit
+    #     min_distance = min(distances)
+    #     selected_exit_id = exit_ids[distances.index(min_distance)]
+    #     selected_journey_id = journey_ids[distances.index(min_distance)]
+    #     selected_distance = min_distance
+    # else:
+    # Use distance-based probabilities
+    probabilities = 1 / (np.array(distances) + 1e-6) ** determinism_strength
+    probabilities /= probabilities.sum()  # Normalize
+    selected_exit_id = np.random.choice(exit_ids, p=probabilities)
+    selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]
+    selected_distance = distances[exit_ids.index(selected_exit_id)]
 
     return selected_journey_id, selected_exit_id, selected_distance
 
@@ -230,7 +231,7 @@ def run_simulation(
             exit_areas,
             exit_ids,
             journey_ids,
-            randomness_strength=randomness_strength_exits,
+            determinism_strength=randomness_strength_exits,
         )
         simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
@@ -314,7 +315,7 @@ def run_simulation(
                     exit_areas,
                     exit_ids,
                     journey_ids,
-                    randomness_strength=randomness_strength_exits * 2,
+                    determinism_strength=randomness_strength_exits * 2,
                 )
                 # Change Journeys: Randomly based on distance
                 simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
@@ -344,7 +345,7 @@ def run_simulation(
 
 
 # ================================= MODEL PARAMETERS =========
-num_agents = 5000  # 10000, 20000
+num_agents = 500  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 v0_max = 3  # m/s
