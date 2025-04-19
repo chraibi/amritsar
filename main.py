@@ -169,25 +169,25 @@ def maybe_remove_agent(simulation, agent, exit_area, exit_probability, exit_radi
     return False
 
 
-def apply_exit_flow_control(
-    agent,
-    factor,
-    exit_areas: List[Polygon],
-    exit_ids: List[int],
-    journey_ids: List[int],
-    damping_radius=5,
-    randomness_strength_exits=0,
-):
-    """Return damped exit v0 and flag if near exit."""
-    position = Point(agent.position)
-    _, _, nearest_exit_distance = get_nearest_exit_id(
-        position, exit_areas, exit_ids, journey_ids=journey_ids
-    )
-    if nearest_exit_distance < damping_radius:
-        damping_factor = max(factor, 1 - nearest_exit_distance / damping_radius)
-        return agent.model.v0 * damping_factor, True
-    else:
-        return agent.model.v0, False
+# def apply_exit_flow_control(
+#     agent,
+#     factor,
+#     exit_areas: List[Polygon],
+#     exit_ids: List[int],
+#     journey_ids: List[int],
+#     damping_radius=5,
+#     randomness_strength_exits=0,
+# ):
+#     """Return damped exit v0 and flag if near exit."""
+#     position = Point(agent.position)
+#     _, _, nearest_exit_distance = get_nearest_exit_id(
+#         position, exit_areas, exit_ids, journey_ids=journey_ids
+#     )
+#     if nearest_exit_distance < damping_radius:
+#         damping_factor = max(factor, 1 - nearest_exit_distance / damping_radius)
+#         return agent.model.v0 * damping_factor, True
+#     else:
+#         return agent.model.v0, False
 
 
 def run_simulation(
@@ -271,6 +271,12 @@ def run_simulation(
 
     last_update_time = -update_time  # Track last update
     causality_locations = defaultdict(int)
+    # Assign individual lambda to each agent in a narrow range around the global value
+    eps = 0.1
+    lambda_range = (lambda_decay - eps, lambda_decay + eps)
+    agent_lambdas = {
+        agent.id: np.random.uniform(*lambda_range) for agent in simulation.agents()
+    }
     while (
         simulation.agent_count() > 0 and dont_stop and simulation.elapsed_time() <= 600
     ):
@@ -288,7 +294,7 @@ def run_simulation(
                 prob = calculate_probability(
                     Point(agent.position),
                     simulation.elapsed_time(),
-                    lambda_decay,
+                    agent_lambdas[agent_id],
                     time_scale,
                 )
 
@@ -339,10 +345,7 @@ def run_simulation(
 
                 # Change Journeys: Randomly based on distance
                 simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
-                # print(
-                #     f"{elapsed_time}: agent: {agent_id}, prob={float(prob):.2f}, initial v0 = {initial_v0:.2f}, base_speed={float(base_speed):.2f} rnd = {rnd:.2f}, p_collapse = {p_collapse:.2f}"
-                # )
-                # print("----------------")
+
             # Record fallen agent count at this time step
             fallen_over_time.append(num_fallen)
             time_series.append(simulation.elapsed_time())
@@ -373,14 +376,13 @@ time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 v0_max = 3  # m/s
 # Add some variability to avoid synchronized agent falls
-# speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
-speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)
-recovery_factor = 1.0
-damping_factor = 0.8
+speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)  # deprecated
+recovery_factor = 1.0  # deprecated
+damping_factor = 0.8  # deprecated
 # Controls how strongly randomness affects exit selection.
 determinism_strength_exits = 0.2
 exit_probability = 0.2
-lambda_decays = [0.5]  #  [0.1, 0.4, 0.5]  # , 0.5, 1]
+lambda_decays = [0.5]  # [0.1, 0.4, 0.5]  # , 0.5, 1]
 num_reps = 1
 # ============================================================
 evac_times = {}
