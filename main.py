@@ -7,7 +7,9 @@ The simulation is run multiple times to get an average evacuation time and numbe
 The time series of fallen agents is also plotted.
 """
 
+import os
 import pickle
+import random
 import time
 from collections import defaultdict
 
@@ -292,6 +294,9 @@ if __name__ == "__main__":
     cl[lambda_decay] = [r[4] for r in res]
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
+    output_dir = "fig_results"
+    os.makedirs(output_dir, exist_ok=True)
+
     save_path = f"{output_dir}/simulation_data_{num_agents}_{timestamp}.pkl"
     data_to_save = {
         "evac_times": evac_times,

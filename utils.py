@@ -1,6 +1,5 @@
 """Utility functions for running main.py."""
 
-import os
 import pathlib
 from typing import List, Tuple
 
@@ -15,8 +14,6 @@ import read_geometry as rr
 def setup_geometry():
     """Parse geometry file and return walkable_area, exit_areas, spawning_area."""
     wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
-    output_dir = "fig_results"
-    os.makedirs(output_dir, exist_ok=True)
 
     # %%
     # simulation might start with less than that, cause we will filter out some bad positions
