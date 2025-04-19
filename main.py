@@ -262,7 +262,6 @@ def run_simulation(
     # **Tracking fallen agents over time**
     fallen_over_time = []
     time_series = []
-    dont_stop = True
     # Create a list to track agents near exits
 
     fallen_status = {agent.id: False for agent in simulation.agents()}
@@ -272,21 +271,18 @@ def run_simulation(
     last_update_time = -update_time  # Track last update
     causality_locations = defaultdict(int)
     # Assign individual lambda to each agent in a narrow range around the global value
-    eps = 0.1
-    lambda_range = (lambda_decay - eps, lambda_decay + eps)
+    lambda_variation = 0.1
+    lambda_range = (lambda_decay - lambda_variation, lambda_decay + lambda_variation)
     agent_lambdas = {
         agent.id: np.random.uniform(*lambda_range) for agent in simulation.agents()
     }
-    while (
-        simulation.agent_count() > 0 and dont_stop and simulation.elapsed_time() <= 600
-    ):
+    while simulation.agent_count() > 0 and simulation.elapsed_time() <= 600:
         simulation.iterate()
         elapsed_time = simulation.elapsed_time()
         # Ensure we only update at exact `update_time` intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time  # Update the last processed time
-            dont_stop = False
-            num_fallen = 0
+            newly_fallen_agents_count = 0
             active_agents = 0
             for agent in simulation.agents():
                 agent_id = agent.id
@@ -310,7 +306,7 @@ def run_simulation(
                     # print(
                     #     f"FALLING {elapsed_time}: agent: {agent_id}, prob={float(prob):.2f}, initial v0 = {initial_v0:.2f}, base_speed={float(base_speed):.2f} rnd = {rnd:.2f}, p_collapse = {p_collapse:.2f}"
                     # )
-                    num_fallen += 1
+                    newly_fallen_agents_count += 1
                     fallen_status[agent.id] = True
                     agent.model.v0 = 0
                     v_distribution[agent_id] = 0
@@ -324,8 +320,6 @@ def run_simulation(
                 elif not fallen_status[agent.id]:
                     active_agents += 1
 
-                if agent.model.v0 > threshold:
-                    dont_stop = True
                 # change randomly journey
                 new_journey_id, new_exit_id, _ = get_nearest_exit_id(
                     agent.position,
@@ -334,26 +328,31 @@ def run_simulation(
                     journey_ids,
                     determinism_strength=determinism_strength_exits,
                 )
-                for exit_area, exit_id in zip(exit_areas, exit_ids):
-                    maybe_remove_agent(
-                        simulation,
-                        agent,
-                        exit_area,
-                        exit_probability=exit_probability,
-                        exit_radius=10,
-                    )
+                if not fallen_status[
+                    agent.id
+                ]:  # Only allow removal if agent is still active
+                    for exit_area, exit_id in zip(exit_areas, exit_ids):
+                        maybe_remove_agent(
+                            simulation,
+                            agent,
+                            exit_area,
+                            exit_probability=exit_probability,
+                            exit_radius=10,
+                        )
 
                 # Change Journeys: Randomly based on distance
                 simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
             # Record fallen agent count at this time step
-            fallen_over_time.append(num_fallen)
+            fallen_over_time.append(newly_fallen_agents_count)
             time_series.append(simulation.elapsed_time())
             exited = num_agents - simulation.agent_count()
 
             print(
-                f"[INFO] Time {simulation.elapsed_time():.2f}s: Num fallen {num_fallen}. Active: {active_agents} Exited: {exited}, Fallen status: {sum(fallen_status.values())}. Still in {simulation.agent_count()}"
+                f"[INFO] Time {simulation.elapsed_time():.2f}s: Num fallen {newly_fallen_agents_count}. Active: {active_agents} Exited: {exited}, Fallen status: {sum(fallen_status.values())}. Still in {simulation.agent_count()}"
             )
+            if active_agents == 0:
+                break
 
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
@@ -371,7 +370,7 @@ def run_simulation(
 
 
 # ================================= MODEL PARAMETERS =========
-num_agents = 5000  # 10000, 20000
+num_agents = 10  # 10000, 20000
 time_scale = 600  # in seconds = 10 min of shooting
 update_time = 10  # in seconds
 v0_max = 3  # m/s
