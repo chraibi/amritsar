@@ -20,6 +20,81 @@ import pickle
 import numpy as np
 import re
 
+
+def plot_causality_grids_by_lambda(
+    fig,
+    ax,
+    walkable_area,
+    data_by_lambda,
+    grid_size=1.0,
+    min_x=0,
+    max_x=220,
+    min_y=0,
+    max_y=130,
+):
+    """
+    data_by_lambda: {lambda_value: [ [(x, y), (x, y), ...], [(x, y), ...], ... ]}
+    grid_size: resolution of the grid
+    """
+
+    for lambda_val, runs in data_by_lambda.items():
+        print(f"Plotting for λ = {lambda_val}")
+
+        # Flatten all positions from all runs
+        positions = [pos for run in runs for pos in run]
+
+        # Create grid
+        width = int(np.ceil((max_x - min_x) / grid_size))
+        height = int(np.ceil((max_y - min_y) / grid_size))
+        grid = np.zeros((width, height), dtype=int)
+
+        for x, y in positions:
+            grid_x = int((x - min_x) // grid_size)
+            grid_y = int((y - min_y) // grid_size)
+
+            if 0 <= grid_x < width and 0 <= grid_y < height:
+                grid[grid_x, grid_y] += 1
+
+        eps = 0
+        extent = [min_x - eps, max_x + eps, min_y - eps, max_y + eps]
+        vmin, vmax = np.min(grid), np.max(grid)
+
+        im = ax.imshow(
+            grid.T,
+            origin="lower",
+            extent=extent,
+            cmap="jet",
+            interpolation="lanczos",
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+        pedpy.plot_walkable_area(
+            walkable_area=pedpy.WalkableArea(walkable_area),
+            line_width=2,
+            line_color="white",
+            axes=ax,
+        )
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(im, cax=cax, label="Number of Fallen Agents")
+        cbar.ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{int(x)}")
+        )  # Format as int
+        cbar.set_ticks(np.linspace(vmin, vmax, num=2))  # Set 5 evenly spaced ticks
+        ax.set_xlabel("X [m]")
+        ax.set_ylabel("Y [m]")
+
+        plt.tight_layout()
+        plt.show()
+
+    # Set labels and title
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Y [m]")
+    ax.set_title(f"Locations of Fallen Agents (λ={lambda_decay}, N={num_agents})")
+    return fig
+
+
 if len(argv) == 1:
     sys.exit(f"Usage {argv[0]} pickle file")
 
@@ -54,7 +129,6 @@ evac_times = loaded_data["evac_times"]
 dead = loaded_data["dead"]
 fallen_time_series = loaded_data["fallen_time_series"]
 cl = loaded_data["cl"]
-
 print("Simulation data successfully loaded.")
 
 lambda_decays = [0.5]
@@ -151,78 +225,27 @@ ax3.legend()
 plt.tight_layout()
 fig3.savefig(f"{output_dir}/fallen_agents_time_series_{num_agents}.pdf")
 
+grid_size = 1
 for lambda_decay in lambda_decays:
-    x_resolution = 350
-    y_resolution = 350
     min_x, min_y, max_x, max_y = walkable_area.bounds
-    x = np.linspace(min_x, max_x, x_resolution)
-    y = np.linspace(min_y, max_y, y_resolution)
-    xx, yy = np.meshgrid(x, y)
-    grid_points = np.vstack((xx.flatten(), yy.flatten())).T
-
-    grid_size_x = int(max_x // 5)  # Scale down grid for visualization
-    grid_size_y = int(max_y // 5)
-
     # Initialize the casualty grid
     causality_locations = cl[lambda_decay]
-    for ic, causality_location in enumerate(causality_locations):
-        fig4, ax4 = plt.subplots(figsize=(8, 10))
-        causality_grid = np.zeros((grid_size_x, grid_size_y))
-        for (x, y), count in causality_location.items():
-            grid_x = int(x // 5)  # Scale coordinates for grid
-            grid_y = int(y // 5)
-            if 0 <= x < grid_size_x and 0 <= y < grid_size_y:
-                causality_grid[x, y] += count
-
-        # Plot heatmap
-        vmin, vmax = np.min(causality_grid), np.max(causality_grid)
-        eps = 1
-        im = ax4.imshow(
-            causality_grid.T,
-            extent=(min_x - eps, max_x + eps, min_y - eps, max_y + eps),
-            cmap="jet",
-            vmin=vmin,
-            vmax=vmax,
-            origin="lower",
-            interpolation="lanczos",
-        )
-        pedpy.plot_walkable_area(
-            walkable_area=pedpy.WalkableArea(walkable_area),
-            line_width=2,
-            line_color="white",
-            axes=ax4,
-        )
-        divider = make_axes_locatable(ax4)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        cbar = fig4.colorbar(im, cax=cax, label="Number of Fallen Agents")
-        cbar.ax.yaxis.set_major_formatter(
-            plt.FuncFormatter(lambda x, _: f"{int(x)}")
-        )  # Format as int
-        cbar.set_ticks(np.linspace(vmin, vmax, num=2))  # Set 5 evenly spaced ticks
-
-        ax4.set_xlabel("X [m]")
-        ax4.set_ylabel("Y [m]")
-        ax4.set_title(f"Locations of Fallen Agents (λ={lambda_decay}, N={num_agents})")
-        # Save heatmap
-        fig4.savefig(
-            f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}_{ic:03d}.png",
-            dpi=300,
-            bbox_inches="tight",
-            pad_inches=0.1,
-        )
-        plt.close(fig4)
-
-# Load images
-print("make gif")
-image_files = sorted(
-    glob.glob(f"{output_dir}/Casualty_Locations_{num_agents}_lambda_0.5_*.png")
-)
-images = [Image.open(img) for img in image_files]
-
-# Save as GIF
-output_gif = f"{output_dir}/Casualty_Locations_{num_agents}.gif"
-images[0].save(
-    output_gif, save_all=True, append_images=images[1:], duration=100, loop=0
-)
-
-print(f"GIF saved as {output_gif}")
+    fig4 = plot_causality_grids_by_lambda(
+        fig=fig4,
+        ax=ax4,
+        walkable_area=walkable_area,
+        data_by_lambda=cl,
+        grid_size=5,
+        min_x=min_x,
+        max_x=max_x,
+        min_y=min_y,
+        max_y=max_y,
+    )
+    # Save heatmap
+    fig4.savefig(
+        f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.png",
+        dpi=300,
+        bbox_inches="tight",
+        pad_inches=0.1,
+    )
+    plt.close(fig4)

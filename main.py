@@ -45,17 +45,17 @@ def run_evacuation_simulation(params):
     exit_radius = params["wp_radius"]
     # Constants
     MAX_SIMULATION_TIME = time_scale
-    GRID_SIZE = 5  # units for causality tracking
     LAMBDA_VARIATION = 0.1  # variation in lambda values
 
     # Tracking data structures
     fallen_over_time = []
     time_series = []
+    overall_fallen_positions = []
     fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
     last_update_time = -update_time
-    causality_locations = defaultdict(int)
-
+    wa = params["walkable_area"]
+    min_x, min_y, max_x, max_y = wa.bounds
     # Assign individual decay rates to agents
     lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
@@ -75,16 +75,18 @@ def run_evacuation_simulation(params):
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time
 
-            number_fallen_agents, number_active_agents = update_agent_statuses(
-                simulation=simulation,
-                fallen_status_agents=fallen_status_agents,
-                v_distribution=v_distribution,
-                agent_lambdas=agent_lambdas,
-                causality_locations=causality_locations,
-                grid_size=GRID_SIZE,
-                time_scale=time_scale,
-                elapsed_time=elapsed_time,
-                seed=params["seed"],
+            number_fallen_agents, number_active_agents, fallen_positions = (
+                update_agent_statuses(
+                    simulation=simulation,
+                    fallen_status_agents=fallen_status_agents,
+                    v_distribution=v_distribution,
+                    agent_lambdas=agent_lambdas,
+                    time_scale=time_scale,
+                    elapsed_time=elapsed_time,
+                    seed=params["seed"],
+                    min_x=min_x,
+                    min_y=min_y,
+                )
             )
 
             remove_or_update_journey(
@@ -101,6 +103,7 @@ def run_evacuation_simulation(params):
             # Record data
             fallen_over_time.append(number_fallen_agents)
             time_series.append(elapsed_time)
+            overall_fallen_positions.extend(fallen_positions)
 
             # Log status
             log_simulation_status(
@@ -127,7 +130,7 @@ def run_evacuation_simulation(params):
         simulation.agent_count(),
         time_series,
         fallen_over_time,
-        causality_locations,
+        overall_fallen_positions,
     )
 
 
@@ -138,14 +141,14 @@ def update_agent_statuses(
     v_distribution,
     agent_lambdas,
     time_scale,
-    causality_locations,
-    grid_size,
     seed,
+    min_x,
+    min_y,
 ):
     """Update agent stamina and handle fallen agents."""
     number_fallen_agents = 0
     number_active_agents = 0
-
+    fallen_positions = []
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -169,19 +172,13 @@ def update_agent_statuses(
             fallen_status_agents[agent_id] = True
             agent.model.v0 = 0
             v_distribution[agent_id] = 0
-
-            # Record casualty location
-            grid_x, grid_y = (
-                int(agent.position[0] // grid_size),
-                int(agent.position[1] // grid_size),
-            )
-            causality_locations[(grid_x, grid_y)] += 1
+            fallen_positions.append(tuple(agent.position))
 
         # Count active agents
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
 
-    return number_fallen_agents, number_active_agents
+    return number_fallen_agents, number_active_agents, fallen_positions
 
 
 def remove_or_update_journey(
@@ -226,7 +223,7 @@ def remove_or_update_journey(
 def init_params(seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    num_agents = 10  # 10000, 20000
+    num_agents = 500  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
     v0_max = 3  # m/s
@@ -264,7 +261,7 @@ def init_params(seed=None):
 if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
     # set seet to a constant value for reproducibility. Otherwise it will be random
-    params = init_params(seed=None)
+    params = init_params(seed=111)
     num_reps = params["num_reps"]
     lambda_decay = params["lambda_decay"]
     num_agents = params["num_agents"]
