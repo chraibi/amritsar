@@ -404,19 +404,18 @@ def log_simulation_status(
 def get_trajectory_name(params):
     """Create a descriptive trajectory name from simulation parameters."""
     name = (
-        f"agents{params['num_agents']}_"
+        f"traj/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
         f"tscale{params['time_scale']}_"
         f"detexit{params['determinism_strength_exits']:.1f}_"
         f"probexit{params['exit_probability']:.1f}_"
         f"seed{params['seed']}"
-        ".sqlite"
     )
     return name
 
 
 def init_params(seed=None):
-    "Define parameters and return parm object."
+    """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
     num_agents = 10  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
@@ -426,7 +425,7 @@ def init_params(seed=None):
     determinism_strength_exits = 0.2
     exit_probability = 0.2
     lambda_decay = 0.5  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-    num_reps = 1
+    num_reps = 5
 
     if not seed:
         seed = random.randint(1, 10000)
@@ -454,7 +453,8 @@ def init_params(seed=None):
 
 # ============================================================
 if __name__ == "__main__":
-    params = init_params(seed=111)
+    # set seet to a constant value for reproducibility. Otherwise it will be random
+    params = init_params(seed=None)
     num_reps = params["num_reps"]
     lambda_decay = params["lambda_decay"]
     num_agents = params["num_agents"]
@@ -462,8 +462,17 @@ if __name__ == "__main__":
     dead = {}
     fallen_time_series = {}
     cl = {}
-    res = Parallel(n_jobs=-1)(
-        delayed(run_evacuation_simulation)(params=params) for _ in range(num_reps)
+
+    def run_with_unique_filename(rep_idx, base_params):
+        """Create a copy of params to avoid modifying the original."""
+        local_params = base_params.copy()
+        base_name = base_params.get("trajectory_file", "trajectory")
+        local_params["trajectory_file"] = f"{base_name}_rep{rep_idx}.sqlite"
+        return run_evacuation_simulation(params=local_params)
+
+    res = Parallel(n_jobs=-1, verbose=1)(
+        delayed(run_with_unique_filename)(rep_indx, base_params=params)
+        for rep_indx in range(num_reps)
     )
     res = list(res)
     evac_times[lambda_decay] = [r[0] for r in res]  # Extract evacuation times
