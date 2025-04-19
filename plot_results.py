@@ -176,7 +176,7 @@ for lambda_decay in lambda_decays:
 
         # Plot heatmap
         vmin, vmax = np.min(causality_grid), np.max(causality_grid)
-        eps = 0.5
+        eps = 1
         im = ax4.imshow(
             causality_grid.T,
             extent=(min_x - eps, max_x + eps, min_y - eps, max_y + eps),
@@ -217,7 +217,6 @@ print("make gif")
 image_files = sorted(
     glob.glob(f"{output_dir}/Casualty_Locations_{num_agents}_lambda_0.5_*.png")
 )
-
 images = [Image.open(img) for img in image_files]
 
 # Save as GIF
