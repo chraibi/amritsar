@@ -74,33 +74,7 @@ def distribute_agents(num_agents, seed, spawning_area):
     return pos_in_spawning_area
 
 
-# %%
-def plot_simulation_configuration(
-    walkable_area, spawning_area, starting_positions, exit_areas
-):
-    axes = pedpy.plot_walkable_area(walkable_area=pedpy.WalkableArea(walkable_area))
-    axes.fill(
-        *intersection(spawning_area, walkable_area).exterior.xy,
-        color="lightgrey",
-        alpha=0.2,
-    )
-    for exit_area in exit_areas:
-        axes.fill(*exit_area.exterior.xy, color="indianred")
-    axes.scatter(*zip(*starting_positions), s=1, alpha=0.7)
-    axes.set_xlabel("x/m")
-    axes.set_ylabel("y/m")
-    axes.set_aspect("equal")
-
-
-pos_in_spawning_area = distribute_agents(
-    num_agents=100, seed=1, spawning_area=intersection(spawning_area, walkable_area)
-)
-# plot_simulation_configuration(
-# walkable_area, spawning_area, pos_in_spawning_area, exit_areas
-# )
-
-
-def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
+def calculate_probability(point, time_elapsed, lambda_decay, time_scale, seed=None):
     """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
     min_x, _, max_x, _ = walkable_area.bounds
     distance_to_left = point.x - min_x
@@ -113,7 +87,8 @@ def calculate_probability(point, time_elapsed, lambda_decay, time_scale):
     d_crit = 10
     k = 10
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
-
+    if seed:
+        np.random.seed(seed)
     noise = np.random.uniform(0.95, 1.05)  # ±5% noise
     probability = distance_factor * time_factor * noise
     return probability
@@ -141,15 +116,6 @@ def get_nearest_exit_id(
         Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
     """
     distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
-    # min_distance = min(distances)
-    # if determinism_strength < 0.01:
-    #     # Always select the nearest exit
-    #     min_distance = min(distances)
-    #     selected_exit_id = exit_ids[distances.index(min_distance)]
-    #     selected_journey_id = journey_ids[distances.index(min_distance)]
-    #     selected_distance = min_distance
-    # else:
-    # Use distance-based probabilities
     probabilities = 1 / (np.array(distances) + 1e-6) ** determinism_strength
     probabilities /= probabilities.sum()  # Normalize
     selected_exit_id = np.random.choice(exit_ids, p=probabilities)
@@ -159,8 +125,13 @@ def get_nearest_exit_id(
     return selected_journey_id, selected_exit_id, selected_distance
 
 
-def maybe_remove_agent(simulation, agent, exit_area, exit_probability, exit_radius):
+def maybe_remove_agent(
+    simulation, agent, exit_area, exit_probability, exit_radius, seed=None
+):
     """Probabilistically remove agent if they are near an exit centroid."""
+    # Set random seed if provided
+    if seed is not None:
+        np.random.seed(seed)
     distance_to_exit = Point(agent.position).distance(exit_area.centroid)
     if distance_to_exit < exit_radius:
         if np.random.rand() < exit_probability:
@@ -169,58 +140,15 @@ def maybe_remove_agent(simulation, agent, exit_area, exit_probability, exit_radi
     return False
 
 
-# def apply_exit_flow_control(
-#     agent,
-#     factor,
-#     exit_areas: List[Polygon],
-#     exit_ids: List[int],
-#     journey_ids: List[int],
-#     damping_radius=5,
-#     randomness_strength_exits=0,
-# ):
-#     """Return damped exit v0 and flag if near exit."""
-#     position = Point(agent.position)
-#     _, _, nearest_exit_distance = get_nearest_exit_id(
-#         position, exit_areas, exit_ids, journey_ids=journey_ids
-#     )
-#     if nearest_exit_distance < damping_radius:
-#         damping_factor = max(factor, 1 - nearest_exit_distance / damping_radius)
-#         return agent.model.v0 * damping_factor, True
-#     else:
-#         return agent.model.v0, False
+def setup_simulation(params):
+    """Create simulation, init agents with journeys and return simulation."""
+    seed = params["seed"]
+    num_agents = params["num_agents"]
+    trajectory_file = params["trajectory_file"]
 
-
-def run_simulation(
-    time_scale,
-    lambda_decay,
-    update_time,
-    threshold,
-    v0_max,
-    recovery_factor,
-    damping_factor,
-    determinism_strength_exits,
-    exit_probability,
-    seed,
-    walkable_area,
-    spawning_area,
-    exit_areas,
-    num_agents,
-):
-    """Run simulation logic."""
-    trajectory_file = f"traj/trajectory_Nagents{num_agents}_Seed{seed}_Lambda{lambda_decay}_rand_{determinism_strength_exits}.sqlite"
-    pos_in_spawning_area = distribute_agents(
-        num_agents=num_agents,
-        seed=seed,
-        spawning_area=intersection(spawning_area, walkable_area),
-    )
-
-    print(
-        f"[INFO] Starting simulation with λ={lambda_decay}, {num_agents} agents, seed={seed}"
-    )
-    start_time = time.time()
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
-        geometry=walkable_area,
+        geometry=params["walkable_area"],
         dt=0.01,
         trajectory_writer=jps.SqliteTrajectoryWriter(
             output_file=pathlib.Path(trajectory_file)
@@ -228,26 +156,29 @@ def run_simulation(
     )
 
     exit_ids = []
-    for exit_area in exit_areas:
-        # exit_id = simulation.add_exit_stage(exit_area)
+    wp_radius = params["wp_radius"]
+    for exit_area in params["exit_areas"]:
         wp = exit_area.centroid
-        exit_id = simulation.add_waypoint_stage((wp.x, wp.y), 10)
+        exit_id = simulation.add_waypoint_stage((wp.x, wp.y), wp_radius)
         exit_ids.append(exit_id)
 
     journey_ids = [
         simulation.add_journey(jps.JourneyDescription([exit_id]))
         for exit_id in exit_ids
     ]
-
-    num_agents = len(pos_in_spawning_area)
-    v_distribution = normal(v0_max, 0.05, num_agents)
+    pos_in_spawning_area = distribute_agents(
+        num_agents=num_agents,
+        seed=seed,
+        spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
+    )
+    v_distribution = normal(params["v0_max"], 0.05, num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,
             exit_areas,
             exit_ids,
             journey_ids,
-            determinism_strength=determinism_strength_exits,
+            determinism_strength=params["determinism_strength_exits"],
         )
         simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
@@ -259,101 +190,96 @@ def run_simulation(
             )
         )
 
-    # **Tracking fallen agents over time**
+    return simulation, exit_ids, journey_ids
+
+
+def run_evacuation_simulation(params):
+    """Run an evacuation simulation with agent stamina decay over time."""
+    np.random.seed(params["seed"])
+    # Create simulation
+    simulation, exit_ids, journey_ids = setup_simulation(params)
+    # Unpack parameters
+    update_time = params["update_time"]
+    lambda_decay = params["lambda_decay"]
+    time_scale = params["time_scale"]
+    determinism_strength_exits = params["determinism_strength_exits"]
+    exit_probability = params["exit_probability"]
+    exit_areas = params["exit_areas"]
+    num_agents = params["num_agents"]
+    exit_radius = params["wp_radius"]
+    # Constants
+    MAX_SIMULATION_TIME = time_scale
+    GRID_SIZE = 5  # units for causality tracking
+    LAMBDA_VARIATION = 0.1  # variation in lambda values
+
+    # Tracking data structures
     fallen_over_time = []
     time_series = []
-    # Create a list to track agents near exits
-
-    fallen_status = {agent.id: False for agent in simulation.agents()}
-    # near_exit_flag = {agent.id: False for agent in simulation.agents()}
+    fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
-
-    last_update_time = -update_time  # Track last update
+    last_update_time = -update_time
     causality_locations = defaultdict(int)
-    # Assign individual lambda to each agent in a narrow range around the global value
-    lambda_variation = 0.1
-    lambda_range = (lambda_decay - lambda_variation, lambda_decay + lambda_variation)
+
+    # Assign individual decay rates to agents
+    lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
         agent.id: np.random.uniform(*lambda_range) for agent in simulation.agents()
     }
-    while simulation.agent_count() > 0 and simulation.elapsed_time() <= 600:
+
+    start_time = time.time()
+
+    while (
+        simulation.agent_count() > 0
+        and simulation.elapsed_time() <= MAX_SIMULATION_TIME
+    ):
         simulation.iterate()
         elapsed_time = simulation.elapsed_time()
-        # Ensure we only update at exact `update_time` intervals
+
+        # Only update at exact intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
-            last_update_time = elapsed_time  # Update the last processed time
-            newly_fallen_agents_count = 0
-            active_agents = 0
-            for agent in simulation.agents():
-                agent_id = agent.id
-                initial_v0 = v_distribution[agent_id]
-                prob = calculate_probability(
-                    Point(agent.position),
-                    simulation.elapsed_time(),
-                    agent_lambdas[agent_id],
-                    time_scale,
-                )
+            last_update_time = elapsed_time
 
-                base_speed = initial_v0 * prob
-                if initial_v0 == 0:
-                    p_collapse = 1
-                else:
-                    p_collapse = 1 - (base_speed / initial_v0)
-
-                # if base_speed < threshold and not fallen_status[agent.id]:
-                rnd = np.random.rand()
-                if rnd < p_collapse and not fallen_status[agent.id]:
-                    # print(
-                    #     f"FALLING {elapsed_time}: agent: {agent_id}, prob={float(prob):.2f}, initial v0 = {initial_v0:.2f}, base_speed={float(base_speed):.2f} rnd = {rnd:.2f}, p_collapse = {p_collapse:.2f}"
-                    # )
-                    newly_fallen_agents_count += 1
-                    fallen_status[agent.id] = True
-                    agent.model.v0 = 0
-                    v_distribution[agent_id] = 0
-                    grid_x, grid_y = (
-                        int(agent.position[0] // 5),
-                        int(agent.position[1] // 5),
-                    )  # 5-unit grid
-                    causality_locations[(grid_x, grid_y)] += 1
-
-                # Apply exit damping ONLY to non-fallen agents
-                elif not fallen_status[agent.id]:
-                    active_agents += 1
-
-                # change randomly journey
-                new_journey_id, new_exit_id, _ = get_nearest_exit_id(
-                    agent.position,
-                    exit_areas,
-                    exit_ids,
-                    journey_ids,
-                    determinism_strength=determinism_strength_exits,
-                )
-                if not fallen_status[
-                    agent.id
-                ]:  # Only allow removal if agent is still active
-                    for exit_area, exit_id in zip(exit_areas, exit_ids):
-                        maybe_remove_agent(
-                            simulation,
-                            agent,
-                            exit_area,
-                            exit_probability=exit_probability,
-                            exit_radius=10,
-                        )
-
-                # Change Journeys: Randomly based on distance
-                simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
-
-            # Record fallen agent count at this time step
-            fallen_over_time.append(newly_fallen_agents_count)
-            time_series.append(simulation.elapsed_time())
-            exited = num_agents - simulation.agent_count()
-
-            print(
-                f"[INFO] Time {simulation.elapsed_time():.2f}s: Num fallen {newly_fallen_agents_count}. Active: {active_agents} Exited: {exited}, Fallen status: {sum(fallen_status.values())}. Still in {simulation.agent_count()}"
+            number_fallen_agents, number_active_agents = update_agent_statuses(
+                simulation=simulation,
+                fallen_status_agents=fallen_status_agents,
+                v_distribution=v_distribution,
+                agent_lambdas=agent_lambdas,
+                causality_locations=causality_locations,
+                grid_size=GRID_SIZE,
+                time_scale=time_scale,
+                elapsed_time=elapsed_time,
+                seed=params["seed"],
             )
-            if active_agents == 0:
+
+            remove_or_update_journey(
+                simulation,
+                fallen_status_agents,
+                exit_areas,
+                exit_ids,
+                journey_ids,
+                determinism_strength_exits,
+                exit_probability,
+                exit_radius,
+            )
+
+            # Record data
+            fallen_over_time.append(number_fallen_agents)
+            time_series.append(elapsed_time)
+
+            # Log status
+            log_simulation_status(
+                elapsed_time,
+                number_fallen_agents,
+                number_active_agents,
+                num_agents,
+                simulation.agent_count(),
+                fallen_status_agents,
+            )
+
+            if number_active_agents == 0:
                 break
 
+    # Log execution time
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
     print(
@@ -369,44 +295,175 @@ def run_simulation(
     )
 
 
-# ================================= MODEL PARAMETERS =========
-num_agents = 10  # 10000, 20000
-time_scale = 600  # in seconds = 10 min of shooting
-update_time = 10  # in seconds
-v0_max = 3  # m/s
-# Add some variability to avoid synchronized agent falls
-speed_threshold = v0_max * 0.1 + np.random.uniform(-0.1, 0.1)  # deprecated
-recovery_factor = 1.0  # deprecated
-damping_factor = 0.8  # deprecated
-# Controls how strongly randomness affects exit selection.
-determinism_strength_exits = 0.2
-exit_probability = 0.2
-lambda_decays = [0.5]  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-num_reps = 1
-# ============================================================
-evac_times = {}
-dead = {}
-fallen_time_series = {}
-cl = {}
-for lambda_decay in lambda_decays:
-    res = Parallel(n_jobs=-1)(
-        delayed(run_simulation)(
-            time_scale=time_scale,
-            lambda_decay=lambda_decay,
-            update_time=update_time,
-            threshold=speed_threshold,
-            v0_max=v0_max,
-            determinism_strength_exits=determinism_strength_exits,
-            exit_probability=exit_probability,
-            recovery_factor=recovery_factor,
-            damping_factor=damping_factor,
-            seed=random.randint(1, 10000),
-            walkable_area=walkable_area,
-            spawning_area=spawning_area,
-            exit_areas=exit_areas,
-            num_agents=num_agents,
+def update_agent_statuses(
+    simulation,
+    elapsed_time,
+    fallen_status_agents,
+    v_distribution,
+    agent_lambdas,
+    time_scale,
+    causality_locations,
+    grid_size,
+    seed,
+):
+    """Update agent stamina and handle fallen agents."""
+    number_fallen_agents = 0
+    number_active_agents = 0
+
+    for agent in simulation.agents():
+        agent_id = agent.id
+        initial_v0 = v_distribution[agent_id]
+
+        # Calculate agent stamina
+        prob = calculate_probability(
+            Point(agent.position),
+            elapsed_time,
+            agent_lambdas[agent_id],
+            time_scale,
+            seed=seed,
         )
-        for _ in range(num_reps)
+
+        base_speed = initial_v0 * prob
+        p_collapse = 1.0 if initial_v0 == 0 else 1.0 - (base_speed / initial_v0)
+
+        # Check if agent should fall
+        if not fallen_status_agents[agent_id] and np.random.rand() < p_collapse:
+            number_fallen_agents += 1
+            fallen_status_agents[agent_id] = True
+            agent.model.v0 = 0
+            v_distribution[agent_id] = 0
+
+            # Record casualty location
+            grid_x, grid_y = (
+                int(agent.position[0] // grid_size),
+                int(agent.position[1] // grid_size),
+            )
+            causality_locations[(grid_x, grid_y)] += 1
+
+        # Count active agents
+        elif not fallen_status_agents[agent_id]:
+            number_active_agents += 1
+
+    return number_fallen_agents, number_active_agents
+
+
+def remove_or_update_journey(
+    simulation,
+    fallen_status_agents,
+    exit_areas,
+    exit_ids,
+    journey_ids,
+    determinism_strength,
+    exit_probability,
+    exit_radius,
+):
+    """Check if agent has to be removed otherwise update journey."""
+    for agent in simulation.agents():
+        agent_to_be_removed = False  # assume agent is not exiting the simulation yet.
+
+        # Only process movement for active agents
+        if not fallen_status_agents[agent.id]:
+            # Try to remove agent if near exit
+            for exit_area, exit_id in zip(exit_areas, exit_ids):
+                agent_to_be_removed = maybe_remove_agent(
+                    simulation,
+                    agent,
+                    exit_area,
+                    exit_probability=exit_probability,
+                    exit_radius=exit_radius,
+                )
+                if agent_to_be_removed:
+                    break
+
+        if not agent_to_be_removed:
+            new_journey_id, new_exit_id, *_ = get_nearest_exit_id(
+                agent.position,
+                exit_areas,
+                exit_ids,
+                journey_ids,
+                determinism_strength=determinism_strength,
+            )
+            simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
+
+
+def log_simulation_status(
+    elapsed_time, num_fallen, active_agents, total_agents, current_count, fallen_status
+):
+    """Log the current simulation status."""
+    exited = total_agents - current_count
+    total_fallen = sum(fallen_status.values())
+
+    print(
+        f"[INFO] Time {elapsed_time:.2f}s: "
+        f"Num fallen {num_fallen}. Active: {active_agents} "
+        f"Exited: {exited}, Fallen total: {total_fallen}. "
+        f"Still in simulation: {current_count}"
+    )
+
+
+def get_trajectory_name(params):
+    """Create a descriptive trajectory name from simulation parameters."""
+    name = (
+        f"agents{params['num_agents']}_"
+        f"lambda{params['lambda_decay']:.2f}_"
+        f"tscale{params['time_scale']}_"
+        f"detexit{params['determinism_strength_exits']:.1f}_"
+        f"probexit{params['exit_probability']:.1f}_"
+        f"seed{params['seed']}"
+        ".sqlite"
+    )
+    return name
+
+
+def init_params(seed=None):
+    "Define parameters and return parm object."
+    # ================================= MODEL PARAMETERS =========
+    num_agents = 10  # 10000, 20000
+    time_scale = 600  # in seconds = 10 min of shooting
+    update_time = 10  # in seconds
+    v0_max = 3  # m/s
+    # Add some variability to avoid synchronized agent falls
+    determinism_strength_exits = 0.2
+    exit_probability = 0.2
+    lambda_decay = 0.5  # [0.1, 0.4, 0.5]  # , 0.5, 1]
+    num_reps = 1
+
+    if not seed:
+        seed = random.randint(1, 10000)
+
+    params = {
+        "num_agents": num_agents,  # Number of agents in simulation
+        "v0_max": v0_max,  # Maximum agent velocity (3 m/s)
+        "seed": seed,
+        "walkable_area": walkable_area,
+        "spawning_area": spawning_area,
+        "exit_areas": exit_areas,
+        "wp_radius": 10,
+        # ====
+        "time_scale": time_scale,  # 600 seconds = 10 min of simulation time
+        "update_time": update_time,  # How often to update agent status (10 seconds)
+        "determinism_strength_exits": determinism_strength_exits,  # Controls randomness in exit selection (0.2)
+        "exit_probability": exit_probability,  # Probability of agent exiting when at exit (0.2)
+        "lambda_decay": lambda_decay,
+        "trajectory_file": "",
+        "num_reps": num_reps,
+    }
+    params["trajectory_file"] = get_trajectory_name(params)
+    return params
+
+
+# ============================================================
+if __name__ == "__main__":
+    params = init_params(seed=111)
+    num_reps = params["num_reps"]
+    lambda_decay = params["lambda_decay"]
+    num_agents = params["num_agents"]
+    evac_times = {}
+    dead = {}
+    fallen_time_series = {}
+    cl = {}
+    res = Parallel(n_jobs=-1)(
+        delayed(run_evacuation_simulation)(params=params) for _ in range(num_reps)
     )
     res = list(res)
     evac_times[lambda_decay] = [r[0] for r in res]  # Extract evacuation times
@@ -417,18 +474,17 @@ for lambda_decay in lambda_decays:
     )  # Extract time series
     cl[lambda_decay] = [r[4] for r in res]
 
-timestamp = time.strftime("%Y%m%d_%H%M%S")
-save_path = f"{output_dir}/simulation_data_{num_agents}_{timestamp}.pkl"
-data_to_save = {
-    "evac_times": evac_times,
-    "dead": dead,
-    "fallen_time_series": fallen_time_series,
-    "cl": cl,
-}
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    save_path = f"{output_dir}/simulation_data_{num_agents}_{timestamp}.pkl"
+    data_to_save = {
+        "evac_times": evac_times,
+        "dead": dead,
+        "fallen_time_series": fallen_time_series,
+        "cl": cl,
+    }
 
+    with open(save_path, "wb") as f:
+        pickle.dump(data_to_save, f)
 
-# Save data
-with open(save_path, "wb") as f:
-    pickle.dump(data_to_save, f)
-
-print(f"Simulation data saved to {save_path}")
+    print(f"Simulation results saved to {save_path}")
+    print(f"Trajectory file {params['trajectory_file']}")
