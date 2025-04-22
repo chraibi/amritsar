@@ -89,9 +89,9 @@ def plot_causality_grids_by_lambda(
         plt.show()
 
     # Set labels and title
-    ax.set_xlabel("X [m]")
-    ax.set_ylabel("Y [m]")
-    ax.set_title(f"Locations of Fallen Agents (λ={lambda_decay}, N={num_agents})")
+    ax.set_xlabel("X [m]", fontsize=18)
+    ax.set_ylabel("Y [m]", fontsize=18)
+    # ax.set_title(f"Locations of Fallen Agents (λ={lambda_decay}, N={num_agents})")
     return fig
 
 
@@ -124,10 +124,13 @@ walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
 with open(save_path, "rb") as f:
     loaded_data = pickle.load(f)
 
+
+# print(loaded_data)
 # Extract variables
 evac_times = loaded_data["evac_times"]
 dead = loaded_data["dead"]
 fallen_time_series = loaded_data["fallen_time_series"]
+print(dead)
 cl = loaded_data["cl"]
 print("Simulation data successfully loaded.")
 
@@ -179,6 +182,7 @@ for i, lambda_decay in enumerate(lambda_decays):
     sums = []
     print(f"Plot with Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
+    #    print(time_series)
     for time_serie, fallen_serie in zip(time_series, fallen_series):
         # ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
         cumulative_fallen = np.cumsum(fallen_serie)
@@ -225,7 +229,7 @@ ax3.legend()
 plt.tight_layout()
 fig3.savefig(f"{output_dir}/fallen_agents_time_series_{num_agents}.pdf")
 
-grid_size = 1
+grid_size = 3
 for lambda_decay in lambda_decays:
     min_x, min_y, max_x, max_y = walkable_area.bounds
     # Initialize the casualty grid
@@ -235,15 +239,16 @@ for lambda_decay in lambda_decays:
         ax=ax4,
         walkable_area=walkable_area,
         data_by_lambda=cl,
-        grid_size=5,
+        grid_size=grid_size,
         min_x=min_x,
         max_x=max_x,
         min_y=min_y,
         max_y=max_y,
     )
     # Save heatmap
+    print(f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf")
     fig4.savefig(
-        f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.png",
+        f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf",
         dpi=300,
         bbox_inches="tight",
         pad_inches=0.1,

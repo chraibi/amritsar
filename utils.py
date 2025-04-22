@@ -125,6 +125,9 @@ def calculate_probability(
     point, time_elapsed, lambda_decay, time_scale, walkable_area, seed=None
 ):
     """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
+    if seed:
+        np.random.seed(seed)
+
     min_x, _, max_x, _ = walkable_area.bounds
     distance_to_left = point.x - min_x
     # todo: add some min distance then people may be initially a bit further from the danger line
@@ -133,11 +136,9 @@ def calculate_probability(
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
     # distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
-    d_crit = 10
+    d_crit = 60
     k = 10
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
-    if seed:
-        np.random.seed(seed)
     noise = np.random.uniform(0.95, 1.05)  # ±5% noise
     probability = distance_factor * time_factor * noise
     return probability

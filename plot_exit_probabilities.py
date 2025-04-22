@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 distances = [5, 10, 20]  # Distances to three exits
 
 # Compute probabilities for different randomness strengths
-strengths = [0.1, 1.0, 2.0]
+strengths = [0.1, 1.0]
 probabilities = {}
 
 for strength in strengths:

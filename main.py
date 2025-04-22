@@ -11,7 +11,6 @@ import os
 import pickle
 import random
 import time
-from collections import defaultdict
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -27,6 +26,29 @@ from utils import (
     setup_geometry,
     setup_simulation,
 )
+import hashlib
+
+
+def generate_seeds(base_seed, num_reps):
+    """
+    Generate a list of reproducible, widely spaced seeds using a base seed.
+
+    Args:
+        base_seed (int): The fixed base seed for reproducibility.
+        num_reps (int): Number of repetitions or seeds needed.
+
+    Returns:
+        List[int]: A list of unique seeds for each repetition.
+    """
+    seeds = []
+    for i in range(num_reps):
+        # Use a hash to ensure well-distributed seed values
+        seed_input = f"{base_seed}-{i}"
+        hash_digest = hashlib.sha256(seed_input.encode()).hexdigest()
+        # Convert hash to int and truncate to stay within RNG limits
+        seed = int(hash_digest, 16) % (2**32)  # fits into 32-bit unsigned int
+        seeds.append(seed)
+    return seeds
 
 
 def run_evacuation_simulation(params):
@@ -223,7 +245,7 @@ def remove_or_update_journey(
 def init_params(seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    num_agents = 500  # 10000, 20000
+    num_agents = 5000  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
     v0_max = 3  # m/s
@@ -231,8 +253,7 @@ def init_params(seed=None):
     determinism_strength_exits = 0.2
     exit_probability = 0.2
     lambda_decay = 0.5  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-    num_reps = 1
-
+    num_reps = 10
     if not seed:
         seed = random.randint(1, 10000)
 
@@ -260,8 +281,9 @@ def init_params(seed=None):
 # ============================================================
 if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
-    # set seet to a constant value for reproducibility. Otherwise it will be random
-    params = init_params(seed=111)
+    # set seed to a constant value for reproducibility. Otherwise to None
+    # params = init_params(seed=None)
+    params = init_params(seed=1234)
     num_reps = params["num_reps"]
     lambda_decay = params["lambda_decay"]
     num_agents = params["num_agents"]
@@ -269,15 +291,19 @@ if __name__ == "__main__":
     dead = {}
     fallen_time_series = {}
     cl = {}
+    rep_seeds = generate_seeds(base_seed=42, num_reps=num_reps)
 
     def run_with_unique_filename(rep_idx, base_params):
         """Create a copy of params to avoid modifying the original."""
         local_params = base_params.copy()
+        # Use modified seed for each repetition
+        local_params["seed"] = rep_seeds[rep_idx]
+        print(f"{rep_idx}: {local_params['seed']}")
         base_name = base_params.get("trajectory_file", "trajectory")
         local_params["trajectory_file"] = f"{base_name}_rep{rep_idx}.sqlite"
         return run_evacuation_simulation(params=local_params)
 
-    res = Parallel(n_jobs=-1, verbose=1)(
+    res = Parallel(n_jobs=-1)(
         delayed(run_with_unique_filename)(rep_indx, base_params=params)
         for rep_indx in range(num_reps)
     )
