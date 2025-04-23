@@ -13,6 +13,7 @@ from PIL import Image
 import glob
 import pedpy
 from shapely import Polygon, Point, LinearRing, intersection
+from pathlib import Path
 
 from sys import argv
 import sys
@@ -100,7 +101,8 @@ if len(argv) == 1:
 
 save_path = argv[1]
 output_dir = "fig_results"
-
+path = Path(save_path)
+stem = path.stem
 # num_agents = save_path.split("_")[-1].split(".")[0]
 
 match = re.search(r"simulation_data_(\d+)_\d+", save_path)
@@ -166,8 +168,8 @@ ax1.grid(alpha=0.1)
 
 # plt.tight_layout()
 
-fig1.savefig(f"{output_dir}/result1_{num_agents}.pdf")
-fig2.savefig(f"{output_dir}/result2_{num_agents}.pdf")
+fig1.savefig(f"{output_dir}/{stem}_result1_{num_agents}.pdf")
+fig2.savefig(f"{output_dir}/{stem}_result2_{num_agents}.pdf")
 
 fig3, ax3 = plt.subplots(figsize=(8, 5))
 # heatmaps
@@ -178,22 +180,51 @@ fig4, ax4 = plt.subplots(figsize=(10, 6))
 colors = plt.cm.viridis(np.linspace(0, 1, len(lambda_decays)))
 color = "gray"
 output_file_stats = f"{output_dir}/fallen_agents_stats_{num_agents}.txt"
+max_time = 600
+
 for i, lambda_decay in enumerate(lambda_decays):
     sums = []
     print(f"Plot with Lambda {lambda_decay}")
     time_series, fallen_series = fallen_time_series[lambda_decay]
     #    print(time_series)
+    print(fallen_series)
+
     for time_serie, fallen_serie in zip(time_series, fallen_series):
-        # ax3.plot(time_serie, fallen_serie, color=color, alpha=0.3, linewidth=0.8)
         cumulative_fallen = np.cumsum(fallen_serie)
+        print(cumulative_fallen)
+        # If the last time point is less than max_time, extend
+        if time_serie[-1] < max_time:
+            # Determine how many points to pad
+            extra_times = np.arange(time_serie[-1] + 1, max_time + 1)
+            extended_time = np.concatenate([time_serie, extra_times])
+
+            # Repeat the last value of the cumulative series
+            last_value = cumulative_fallen[-1]
+            extended_cumulative = np.concatenate(
+                [cumulative_fallen, np.full(len(extra_times), last_value)]
+            )
+        else:
+            extended_time = time_serie
+            extended_cumulative = cumulative_fallen
+
         ax3.plot(
-            time_serie,
-            cumulative_fallen,
+            extended_time,
+            extended_cumulative,
             color=color,
-            alpha=0.3,
-            linewidth=0.8,
+            alpha=0.8,
+            linewidth=1,
             linestyle="--",
         )
+        # for time_serie, fallen_serie in zip(time_series, fallen_series):
+        #     cumulative_fallen = np.cumsum(fallen_serie)
+        #     ax3.plot(
+        #         time_serie,
+        #         cumulative_fallen,
+        #         color=color,
+        #         alpha=0.3,
+        #         linewidth=0.8,
+        #         linestyle="--",
+        #     )
         sums.append(np.sum(fallen_serie))
 
     # Find the index of the longest time series
@@ -207,14 +238,14 @@ for i, lambda_decay in enumerate(lambda_decays):
     ax3.set_title(
         rf"Fallen Agents $\approx$ {mean_fallen} $\pm$ {std_fallen}  (N={num_agents})"
     )
-    ax3.plot(
-        representative_time,
-        representative_cumulative_fallen,
-        label=rf"Cumulative $\lambda = {lambda_decay}$",
-        color=color,
-        linestyle="-",
-        linewidth=2,
-    )
+    # ax3.plot(
+    #     representative_time,
+    #     representative_cumulative_fallen,
+    #     label=rf"Cumulative $\lambda = {lambda_decay}$",
+    #     color=color,
+    #     linestyle="-",
+    #     linewidth=2,
+    # )
 
     with open(output_file_stats, "w") as f:
         f.write(f"{lambda_decay},{mean_fallen},{std_fallen},{num_agents}")
@@ -227,7 +258,7 @@ ax3.set_ylabel("New Fallen Agents per Time Step")
 ax3.grid(alpha=0.3)
 ax3.legend()
 plt.tight_layout()
-fig3.savefig(f"{output_dir}/fallen_agents_time_series_{num_agents}.pdf")
+fig3.savefig(f"{output_dir}/{stem}_fallen_agents_time_series_{num_agents}.pdf")
 
 grid_size = 3
 for lambda_decay in lambda_decays:
@@ -246,9 +277,11 @@ for lambda_decay in lambda_decays:
         max_y=max_y,
     )
     # Save heatmap
-    print(f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf")
+    print(
+        f"{output_dir}/{stem}_Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf"
+    )
     fig4.savefig(
-        f"{output_dir}/Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf",
+        f"{output_dir}/{stem}_Casualty_Locations_{num_agents}_lambda_{lambda_decay}.pdf",
         dpi=300,
         bbox_inches="tight",
         pad_inches=0.1,
