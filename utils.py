@@ -76,7 +76,7 @@ def setup_simulation(params):
     ]
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
-        seed=seed,
+        seed=123,  # TODO seed but lets take same for all
         spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
     )
     v_distribution = normal(params["v0_max"], 0.05, num_agents)
@@ -125,8 +125,6 @@ def calculate_probability(
     point, time_elapsed, lambda_decay, time_scale, walkable_area, seed=None
 ):
     """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
-    if seed:
-        np.random.seed(seed)
 
     min_x, _, max_x, _ = walkable_area.bounds
     distance_to_left = point.x - min_x
@@ -136,8 +134,8 @@ def calculate_probability(
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
     # distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
-    d_crit = 60
-    k = 10
+    d_crit = 10
+    k = 50
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
     noise = np.random.uniform(0.95, 1.05)  # ±5% noise
     probability = distance_factor * time_factor * noise
@@ -180,8 +178,6 @@ def maybe_remove_agent(
 ):
     """Probabilistically remove agent if they are near an exit centroid."""
     # Set random seed if provided
-    if seed is not None:
-        np.random.seed(seed)
     distance_to_exit = Point(agent.position).distance(exit_area.centroid)
     if distance_to_exit < exit_radius:
         if np.random.rand() < exit_probability:
