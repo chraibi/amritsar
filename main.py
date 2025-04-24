@@ -53,9 +53,11 @@ def generate_seeds(base_seed, num_reps):
 
 def run_evacuation_simulation(params):
     """Run an evacuation simulation with agent stamina decay over time."""
-    np.random.seed(params["seed"])
+    seed = params["seed"]
+    print(f"seeding with {seed}")
+    rng = np.random.default_rng(seed)
     # Create simulation
-    simulation, exit_ids, journey_ids = setup_simulation(params)
+    simulation, exit_ids, journey_ids = setup_simulation(params, rng)
     # Unpack parameters
     update_time = params["update_time"]
     lambda_decay = params["lambda_decay"]
@@ -85,7 +87,7 @@ def run_evacuation_simulation(params):
     }
 
     start_time = time.time()
-
+    print(f"Enter run_evacuation_simulation with {params['seed']}")
     while (
         simulation.agent_count() > 0
         and simulation.elapsed_time() <= MAX_SIMULATION_TIME
@@ -105,7 +107,7 @@ def run_evacuation_simulation(params):
                     agent_lambdas=agent_lambdas,
                     time_scale=time_scale,
                     elapsed_time=elapsed_time,
-                    seed=params["seed"],
+                    rng=rng,
                     min_x=min_x,
                     min_y=min_y,
                 )
@@ -120,6 +122,7 @@ def run_evacuation_simulation(params):
                 determinism_strength_exits,
                 exit_probability,
                 exit_radius,
+                rng=rng,
             )
 
             # Record data
@@ -163,7 +166,7 @@ def update_agent_statuses(
     v_distribution,
     agent_lambdas,
     time_scale,
-    seed,
+    rng,
     min_x,
     min_y,
 ):
@@ -171,6 +174,8 @@ def update_agent_statuses(
     number_fallen_agents = 0
     number_active_agents = 0
     fallen_positions = []
+    max_collapse_this_step = 250  # 125 for more conservative values
+    num_collapse_attempts = 0
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -182,24 +187,42 @@ def update_agent_statuses(
             agent_lambdas[agent_id],
             time_scale,
             walkable_area,
-            seed=seed,
+            rng=rng,
         )
 
         base_speed = initial_v0 * prob
-        p_collapse = 1.0 if initial_v0 == 0 else 1.0 - (base_speed / initial_v0)
-
+        # small prob -> p_collapse big
+        if initial_v0 == 0:
+            p_collapse = 1.0
+        else:
+            p_collapse = 1.0 - (base_speed / initial_v0)
+            # p_collapse = max(min(p_collapse, 0.8), 0.05)
         # Check if agent should fall
-        if not fallen_status_agents[agent_id] and np.random.rand() < p_collapse:
-            number_fallen_agents += 1
-            fallen_status_agents[agent_id] = True
-            agent.model.v0 = 0
-            v_distribution[agent_id] = 0
-            fallen_positions.append(tuple(agent.position))
+        rn_number = np.random.rand()
+        if not fallen_status_agents[agent_id] and rn_number < p_collapse:
+            if num_collapse_attempts < max_collapse_this_step:
+                number_fallen_agents += 1
+                num_collapse_attempts += 1
+                fallen_status_agents[agent_id] = True
+                agent.model.v0 = 0
+                v_distribution[agent_id] = 0
+                fallen_positions.append(tuple(agent.position))
 
-        # Count active agents
+            # Count active agents
+            else:
+                number_active_agents += 1
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
-
+        # print(
+        #     f"{agent_id}: "
+        #     f"prob = {prob:.2f}, "
+        #     f"initial_v0 = {initial_v0:.2f}, "
+        #     f"base_speed = {float(base_speed):.2f}, "
+        #     f"p_collapse = {float(p_collapse):.2f}, "
+        #     f"rn_number = {float(rn_number):.2f}, "
+        #     f"fallen_status = {fallen_status_agents[agent_id]}, "
+        #     f"position = ({agent.position[0]:.2f}, {agent.position[1]:.2f})"
+        # )
     return number_fallen_agents, number_active_agents, fallen_positions
 
 
@@ -212,6 +235,7 @@ def remove_or_update_journey(
     determinism_strength,
     exit_probability,
     exit_radius,
+    rng,
 ):
     """Check if agent has to be removed otherwise update journey."""
     for agent in simulation.agents():
@@ -227,6 +251,7 @@ def remove_or_update_journey(
                     exit_area,
                     exit_probability=exit_probability,
                     exit_radius=exit_radius,
+                    rng=rng,
                 )
                 if agent_to_be_removed:
                     break
@@ -237,6 +262,7 @@ def remove_or_update_journey(
                 exit_areas,
                 exit_ids,
                 journey_ids,
+                rng=rng,
                 determinism_strength=determinism_strength,
             )
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
@@ -245,15 +271,15 @@ def remove_or_update_journey(
 def init_params(seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    num_agents = 5000  # 10000, 20000
+    num_agents = 2  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
     v0_max = 3  # m/s
     # Add some variability to avoid synchronized agent falls
     determinism_strength_exits = 0.2
     exit_probability = 0.2
-    lambda_decay = 0.5  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-    num_reps = 10
+    lambda_decay = 0.1  # [0.1, 0.4, 0.5]  # , 0.5, 1]
+    num_reps = 2
     if not seed:
         seed = random.randint(1, 10000)
 
@@ -303,7 +329,7 @@ if __name__ == "__main__":
         local_params["trajectory_file"] = f"{base_name}_rep{rep_idx}.sqlite"
         return run_evacuation_simulation(params=local_params)
 
-    res = Parallel(n_jobs=-1)(
+    res = Parallel(n_jobs=1)(
         delayed(run_with_unique_filename)(rep_indx, base_params=params)
         for rep_indx in range(num_reps)
     )

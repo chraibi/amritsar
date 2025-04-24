@@ -48,9 +48,10 @@ def setup_geometry():
     return (walkable_area, exit_areas, spawning_area)
 
 
-def setup_simulation(params):
+def setup_simulation(params, rng):
     """Create simulation, init agents with journeys and return simulation."""
     seed = params["seed"]
+
     num_agents = params["num_agents"]
     trajectory_file = params["trajectory_file"]
     exit_areas = params["exit_areas"]
@@ -86,6 +87,7 @@ def setup_simulation(params):
             exit_areas,
             exit_ids,
             journey_ids,
+            rng=rng,
             determinism_strength=params["determinism_strength_exits"],
         )
         simulation.add_agent(
@@ -122,7 +124,7 @@ def distribute_agents(num_agents, seed, spawning_area):
 
 
 def calculate_probability(
-    point, time_elapsed, lambda_decay, time_scale, walkable_area, seed=None
+    point, time_elapsed, lambda_decay, time_scale, walkable_area, rng
 ):
     """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
 
@@ -135,10 +137,11 @@ def calculate_probability(
     time_factor = np.exp(-lambda_decay * normalized_time)
     # distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
     d_crit = 10
-    k = 50
+    k = 5
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
-    noise = np.random.uniform(0.95, 1.05)  # ±5% noise
+    noise = rng.uniform(0.95, 1.05)
     probability = distance_factor * time_factor * noise
+    #    probability = time_factor * noise
     return probability
 
 
@@ -147,6 +150,7 @@ def get_nearest_exit_id(
     exit_areas: List[Polygon],
     exit_ids: List[int],
     journey_ids: List[int],
+    rng,
     determinism_strength: float = 1.0,
 ) -> Tuple[int, int, float]:
     """
@@ -166,7 +170,8 @@ def get_nearest_exit_id(
     distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
     probabilities = 1 / (np.array(distances) + 1e-6) ** determinism_strength
     probabilities /= probabilities.sum()  # Normalize
-    selected_exit_id = np.random.choice(exit_ids, p=probabilities)
+    #    selected_exit_id = np.random.choice(exit_ids, p=probabilities)
+    selected_exit_id = rng.choice(exit_ids, p=probabilities)
     selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]
     selected_distance = distances[exit_ids.index(selected_exit_id)]
 
@@ -174,13 +179,14 @@ def get_nearest_exit_id(
 
 
 def maybe_remove_agent(
-    simulation, agent, exit_area, exit_probability, exit_radius, seed=None
+    simulation, agent, exit_area, exit_probability, exit_radius, rng
 ):
     """Probabilistically remove agent if they are near an exit centroid."""
     # Set random seed if provided
+
     distance_to_exit = Point(agent.position).distance(exit_area.centroid)
     if distance_to_exit < exit_radius:
-        if np.random.rand() < exit_probability:
+        if rng.random() < exit_probability:
             simulation.mark_agent_for_removal(agent.id)
             return True
     return False
@@ -197,7 +203,8 @@ def log_simulation_status(
         f"[INFO] Time {elapsed_time:.2f}s: "
         f"Num fallen {num_fallen}. Active: {active_agents} "
         f"Exited: {exited}, Fallen total: {total_fallen}. "
-        f"Still in simulation: {current_count}"
+        f"Still in simulation: {current_count}. "
+        f"Fatality percentage: {total_fallen / total_agents * 100:.2f}%"
     )
 
 
