@@ -54,7 +54,7 @@ def generate_seeds(base_seed, num_reps):
 def run_evacuation_simulation(params):
     """Run an evacuation simulation with agent stamina decay over time."""
     seed = params["seed"]
-    print(f"seeding with {seed}")
+    # print(f"seeding with {seed}")
     rng = np.random.default_rng(seed)
     # Create simulation
     simulation, exit_ids, journey_ids = setup_simulation(params, rng)
@@ -87,7 +87,7 @@ def run_evacuation_simulation(params):
     }
 
     start_time = time.time()
-    print(f"Enter run_evacuation_simulation with {params['seed']}")
+    # print(f"Enter run_evacuation_simulation with {params['seed']}")
     while (
         simulation.agent_count() > 0
         and simulation.elapsed_time() <= MAX_SIMULATION_TIME
@@ -129,7 +129,6 @@ def run_evacuation_simulation(params):
             time_series.append(elapsed_time)
             overall_fallen_positions.extend(fallen_positions)
 
-            # Log status
             # log_simulation_status(
             #     elapsed_time,
             #     number_fallen_agents,
@@ -146,7 +145,7 @@ def run_evacuation_simulation(params):
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
     print(
-        f"[INFO] Simulation finished: λ={lambda_decay}, Execution time: {hours} h {minutes} min {seconds:.1f} s"
+        f"[INFO] Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {number_fallen_agents:05d}"
     )
 
     return (
@@ -177,7 +176,7 @@ def update_agent_statuses(
     num_collapse_attempts = 0
     radius_around = 1.5  # Covers about 7 m²
     n_max = 12  # Full shielding at ~1.7 persons/m²
-    gamma = 0.5
+    gamma = 0.7
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -322,55 +321,67 @@ if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
     # Define sweeps
-    num_agents_list = [10, 20, 30]
-    lambda_decay_list = [0.2, 0.3]
+    num_agents_list = [5000, 10000, 15000]
+    lambda_decay_list = [0.5, 0.3, 0.2]
     global_seed = 1234
-    num_reps = 4
+    num_reps = 5
     # Output storage
     evac_times = {}
     dead = {}
     fallen_time_series = {}
     cl = {}
 
-    # Loop over num_agents and lambda_decay
+    all_tasks = []
+
+    # Build all (num_agents, lambda_decay, rep_idx) combinations
     for num_agents_val in num_agents_list:
+        rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
         for lambda_decay_val in lambda_decay_list:
-            print(
-                f">>>> Running simulations for num_agents={num_agents_val}, lambda_decay={lambda_decay_val}"
-            )
+            for rep_idx in range(num_reps):
+                task = (num_agents_val, lambda_decay_val, rep_idx, rep_seeds[rep_idx])
+                all_tasks.append(task)
 
-            # Initialize parameters
-            params = init_params(
-                num_agents=num_agents_val,
-                num_reps=num_reps,
-                lambda_decay=lambda_decay_val,
-                seed=global_seed,
-            )
-            rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
+    def run_single_simulation(num_agents_val, lambda_decay_val, rep_idx, seed_val):
+        print(
+            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda_decay={lambda_decay_val}"
+        )
+        params = init_params(
+            num_agents=num_agents_val,
+            num_reps=num_reps,
+            lambda_decay=lambda_decay_val,
+            seed=global_seed,  # Important: still base_seed here
+        ).copy()
+        params["seed"] = seed_val
+        base_name = params.get("trajectory_file", "trajectory")
+        params["trajectory_file"] = (
+            f"{base_name}_agents{num_agents_val}_decay{lambda_decay_val}_rep{rep_idx}.sqlite"
+        )
+        return (
+            num_agents_val,
+            lambda_decay_val,
+            rep_idx,
+            run_evacuation_simulation(params=params),
+        )
 
-            def run_with_unique_filename(rep_idx, base_params):
-                local_params = base_params.copy()
-                local_params["seed"] = rep_seeds[rep_idx]
-                base_name = base_params.get("trajectory_file", "trajectory")
-                local_params["trajectory_file"] = (
-                    f"{base_name}_agents{num_agents_val}_decay{lambda_decay_val}_rep{rep_idx}.sqlite"
-                )
-                return run_evacuation_simulation(params=local_params)
+    # Run all tasks fully parallel
+    results = Parallel(n_jobs=-1)(
+        delayed(run_single_simulation)(*task) for task in all_tasks
+    )
 
-            # Parallel execution
-            res = Parallel(n_jobs=-1)(
-                delayed(run_with_unique_filename)(rep_idx, base_params=params)
-                for rep_idx in range(num_reps)
-            )
+    # Organize the results
+    for num_agents_val, lambda_decay_val, rep_idx, result in results:
+        key = (num_agents_val, lambda_decay_val)
+        if key not in evac_times:
+            evac_times[key] = []
+            dead[key] = []
+            fallen_time_series[key] = ([], [])
+            cl[key] = []
 
-            res = list(res)
-
-            # Save results
-            key = (num_agents_val, lambda_decay_val)
-            evac_times[key] = [r[0] for r in res]
-            dead[key] = [r[1] for r in res]
-            fallen_time_series[key] = ([r[2] for r in res], [r[3] for r in res])
-            cl[key] = [r[4] for r in res]
+        evac_times[key].append(result[0])
+        dead[key].append(result[1])
+        fallen_time_series[key][0].append(result[2])
+        fallen_time_series[key][1].append(result[3])
+        cl[key].append(result[4])
 
     # Saving all collected data
     timestamp = time.strftime("%Y%m%d_%H%M%S")
