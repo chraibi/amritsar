@@ -98,6 +98,7 @@ def run_evacuation_simulation(params):
         # Only update at exact intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time
+            print("check neighbors")
 
             number_fallen_agents, number_active_agents, fallen_positions = (
                 update_agent_statuses(
@@ -176,9 +177,19 @@ def update_agent_statuses(
     fallen_positions = []
     max_collapse_this_step = 250  # 125 for more conservative values
     num_collapse_attempts = 0
+    radius_around = 1.5  # Covers about 7 m²
+    n_max = 12  # Full shielding at ~1.7 persons/m²
+    gamma = 0.5
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
+        neighbors = list(
+            simulation.agents_in_range(pos=agent.position, distance=radius_around)
+        )
+        shielding = min(1.0, len(neighbors) / n_max)
+        # print(
+        #     f"{simulation.elapsed_time()}: Agent: {agent.id} at {agent.position} has {len(neighbors)} neighbors. Density: {len(neighbors) / np.pi / radius_around**2:.2f}, shielding: {shielding:.2f}"
+        # )
 
         # Calculate agent stamina
         prob = calculate_probability(
@@ -187,15 +198,21 @@ def update_agent_statuses(
             agent_lambdas[agent_id],
             time_scale,
             walkable_area,
+            shielding=shielding,
+            gamma=gamma,
             rng=rng,
         )
 
-        base_speed = initial_v0 * prob
+        # base_speed = initial_v0 * prob
         # small prob -> p_collapse big
+        # Higher pcollapse → more likely to collapse
+        # Lower pcollapse → less likely to collapse
         if initial_v0 == 0:
             p_collapse = 1.0
         else:
-            p_collapse = 1.0 - (base_speed / initial_v0)
+            # p_collapse = 1.0 - (base_speed / initial_v0)
+            p_collapse = 1.0 - prob
+            # this is the same as 1 - prob
             # p_collapse = max(min(p_collapse, 0.8), 0.05)
         # Check if agent should fall
         rn_number = np.random.rand()
@@ -271,15 +288,15 @@ def remove_or_update_journey(
 def init_params(seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    num_agents = 2  # 10000, 20000
+    num_agents = 5000  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
     v0_max = 3  # m/s
     # Add some variability to avoid synchronized agent falls
     determinism_strength_exits = 0.2
     exit_probability = 0.2
-    lambda_decay = 0.1  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-    num_reps = 2
+    lambda_decay = 0.3  # [0.1, 0.4, 0.5]  # , 0.5, 1]
+    num_reps = 10
     if not seed:
         seed = random.randint(1, 10000)
 
@@ -329,7 +346,7 @@ if __name__ == "__main__":
         local_params["trajectory_file"] = f"{base_name}_rep{rep_idx}.sqlite"
         return run_evacuation_simulation(params=local_params)
 
-    res = Parallel(n_jobs=1)(
+    res = Parallel(n_jobs=-1)(
         delayed(run_with_unique_filename)(rep_indx, base_params=params)
         for rep_indx in range(num_reps)
     )

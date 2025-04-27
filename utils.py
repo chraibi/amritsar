@@ -77,7 +77,7 @@ def setup_simulation(params, rng):
     ]
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
-        seed=123,  # TODO seed but lets take same for all
+        seed=params["seed"],  # TODO seed but lets take same for all
         spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
     )
     v_distribution = normal(params["v0_max"], 0.05, num_agents)
@@ -123,11 +123,16 @@ def distribute_agents(num_agents, seed, spawning_area):
     return pos_in_spawning_area
 
 
-def calculate_probability(
-    point, time_elapsed, lambda_decay, time_scale, walkable_area, rng
-):
-    """Calculate the probability of an agent falling down based on the distance to the exit and the time elapsed."""
+def adjusted_probability(base_prob, shielding, gamma):
+    """Shielding enhances the survival chances."""
+    boosted_prob = base_prob * (1 + gamma * shielding)
+    return min(boosted_prob, 1.0)  # clamp to 1.0
 
+
+def calculate_probability(
+    point, time_elapsed, lambda_decay, time_scale, walkable_area, shielding, gamma, rng
+):
+    """Calculate the probability of survival for an agent."""
     min_x, _, max_x, _ = walkable_area.bounds
     distance_to_left = point.x - min_x
     # todo: add some min distance then people may be initially a bit further from the danger line
@@ -141,8 +146,9 @@ def calculate_probability(
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
     noise = rng.uniform(0.95, 1.05)
     probability = distance_factor * time_factor * noise
-    #    probability = time_factor * noise
-    return probability
+
+    probability2 = adjusted_probability(probability, shielding, gamma=gamma)
+    return probability2
 
 
 def get_nearest_exit_id(

@@ -17,7 +17,7 @@ for strength in strengths:
 markers = ["o", "s", "D"]
 plt.figure(figsize=(10, 6))
 for i, (strength, probs) in enumerate(probabilities.items()):
-    plt.plot(distances, probs, marker=markers[i], label=rf"$\alpha = {strength}$")
+    plt.plot(distances, probs, marker=markers[i], label=rf"$\beta = {strength}$")
 
 plt.xlabel("Distance to Exit")
 plt.ylabel("Selection Probability")

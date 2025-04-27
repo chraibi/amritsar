@@ -136,7 +136,7 @@ print(dead)
 cl = loaded_data["cl"]
 print("Simulation data successfully loaded.")
 
-lambda_decays = [0.5]
+lambda_decays = [0.3]
 # %% Ploting
 mean_evac_times = {scenario: np.mean(times) for scenario, times in evac_times.items()}
 std_dev_evac_times = {scenario: np.std(times) for scenario, times in evac_times.items()}
@@ -213,7 +213,7 @@ for i, lambda_decay in enumerate(lambda_decays):
             color=color,
             alpha=0.8,
             linewidth=1,
-            linestyle="--",
+            linestyle="-",
         )
         # for time_serie, fallen_serie in zip(time_series, fallen_series):
         #     cumulative_fallen = np.cumsum(fallen_serie)
@@ -256,7 +256,7 @@ ax3.set_ylabel("New Fallen Agents per Time Step")
 # ax3.set_title(rf"Fallen Agents $\approx$ {int(np.sum(fallen_series[0]))}")
 
 ax3.grid(alpha=0.3)
-ax3.legend()
+# ax3.legend()
 plt.tight_layout()
 fig3.savefig(f"{output_dir}/{stem}_fallen_agents_time_series_{num_agents}.pdf")
 
