@@ -98,8 +98,6 @@ def run_evacuation_simulation(params):
         # Only update at exact intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time
-            print("check neighbors")
-
             number_fallen_agents, number_active_agents, fallen_positions = (
                 update_agent_statuses(
                     simulation=simulation,
@@ -132,14 +130,14 @@ def run_evacuation_simulation(params):
             overall_fallen_positions.extend(fallen_positions)
 
             # Log status
-            log_simulation_status(
-                elapsed_time,
-                number_fallen_agents,
-                number_active_agents,
-                num_agents,
-                simulation.agent_count(),
-                fallen_status_agents,
-            )
+            # log_simulation_status(
+            #     elapsed_time,
+            #     number_fallen_agents,
+            #     number_active_agents,
+            #     num_agents,
+            #     simulation.agent_count(),
+            #     fallen_status_agents,
+            # )
 
             if number_active_agents == 0:
                 break
@@ -285,18 +283,15 @@ def remove_or_update_journey(
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
 
-def init_params(seed=None):
+def init_params(num_agents, lambda_decay, num_reps, seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    num_agents = 5000  # 10000, 20000
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
     v0_max = 3  # m/s
     # Add some variability to avoid synchronized agent falls
     determinism_strength_exits = 0.2
     exit_probability = 0.2
-    lambda_decay = 0.3  # [0.1, 0.4, 0.5]  # , 0.5, 1]
-    num_reps = 10
     if not seed:
         seed = random.randint(1, 10000)
 
@@ -322,48 +317,67 @@ def init_params(seed=None):
 
 
 # ============================================================
+
 if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
-    # set seed to a constant value for reproducibility. Otherwise to None
-    # params = init_params(seed=None)
-    params = init_params(seed=1234)
-    num_reps = params["num_reps"]
-    lambda_decay = params["lambda_decay"]
-    num_agents = params["num_agents"]
+
+    # Define sweeps
+    num_agents_list = [10, 20, 30]
+    lambda_decay_list = [0.2, 0.3]
+    global_seed = 1234
+    num_reps = 4
+    # Output storage
     evac_times = {}
     dead = {}
     fallen_time_series = {}
     cl = {}
-    rep_seeds = generate_seeds(base_seed=42, num_reps=num_reps)
 
-    def run_with_unique_filename(rep_idx, base_params):
-        """Create a copy of params to avoid modifying the original."""
-        local_params = base_params.copy()
-        # Use modified seed for each repetition
-        local_params["seed"] = rep_seeds[rep_idx]
-        print(f"{rep_idx}: {local_params['seed']}")
-        base_name = base_params.get("trajectory_file", "trajectory")
-        local_params["trajectory_file"] = f"{base_name}_rep{rep_idx}.sqlite"
-        return run_evacuation_simulation(params=local_params)
+    # Loop over num_agents and lambda_decay
+    for num_agents_val in num_agents_list:
+        for lambda_decay_val in lambda_decay_list:
+            print(
+                f">>>> Running simulations for num_agents={num_agents_val}, lambda_decay={lambda_decay_val}"
+            )
 
-    res = Parallel(n_jobs=-1)(
-        delayed(run_with_unique_filename)(rep_indx, base_params=params)
-        for rep_indx in range(num_reps)
-    )
-    res = list(res)
-    evac_times[lambda_decay] = [r[0] for r in res]  # Extract evacuation times
-    dead[lambda_decay] = [r[1] for r in res]  # Extract number of fallen agents
-    fallen_time_series[lambda_decay] = (
-        [r[2] for r in res],
-        [r[3] for r in res],
-    )  # Extract time series
-    cl[lambda_decay] = [r[4] for r in res]
+            # Initialize parameters
+            params = init_params(
+                num_agents=num_agents_val,
+                num_reps=num_reps,
+                lambda_decay=lambda_decay_val,
+                seed=global_seed,
+            )
+            rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
 
+            def run_with_unique_filename(rep_idx, base_params):
+                local_params = base_params.copy()
+                local_params["seed"] = rep_seeds[rep_idx]
+                base_name = base_params.get("trajectory_file", "trajectory")
+                local_params["trajectory_file"] = (
+                    f"{base_name}_agents{num_agents_val}_decay{lambda_decay_val}_rep{rep_idx}.sqlite"
+                )
+                return run_evacuation_simulation(params=local_params)
+
+            # Parallel execution
+            res = Parallel(n_jobs=-1)(
+                delayed(run_with_unique_filename)(rep_idx, base_params=params)
+                for rep_idx in range(num_reps)
+            )
+
+            res = list(res)
+
+            # Save results
+            key = (num_agents_val, lambda_decay_val)
+            evac_times[key] = [r[0] for r in res]
+            dead[key] = [r[1] for r in res]
+            fallen_time_series[key] = ([r[2] for r in res], [r[3] for r in res])
+            cl[key] = [r[4] for r in res]
+
+    # Saving all collected data
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     output_dir = "fig_results"
     os.makedirs(output_dir, exist_ok=True)
 
-    save_path = f"{output_dir}/simulation_data_{num_agents}_{timestamp}.pkl"
+    save_path = f"{output_dir}/sweep_simulation_data_{timestamp}.pkl"
     data_to_save = {
         "evac_times": evac_times,
         "dead": dead,
@@ -374,5 +388,4 @@ if __name__ == "__main__":
     with open(save_path, "wb") as f:
         pickle.dump(data_to_save, f)
 
-    print(f"Simulation results saved to {save_path}")
-    print(f"Trajectory file {params['trajectory_file']}")
+    print(f"Sweep simulation results saved to {save_path}")
