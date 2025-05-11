@@ -325,10 +325,10 @@ if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
     # Define sweeps
-    num_agents_list = [5000, 10000, 15000]
+    num_agents_list = [15000, 10000, 5000]
     lambda_decay_list = [0.2, 0.3]
     global_seed = 1234
-    num_reps = 10
+    num_reps = 5
     # Output storage
     evac_times = {}
     dead = {}
