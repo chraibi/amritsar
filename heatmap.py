@@ -38,6 +38,9 @@ dpi = 150  # Resolution
 
 # Generate heatmaps for each lambda value
 for idx, lambda_val in enumerate(lambda_values):
+    print(
+        f"Generating heatmap for λ = {lambda_val:.2f} ({idx + 1}/{len(lambda_values)})"
+    )
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi)
 
     P = np.array(
