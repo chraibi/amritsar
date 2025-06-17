@@ -36,30 +36,41 @@ walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
 # Extract scenarios
 scenarios = list(fallen_time_series.keys())
 print(scenarios)
-unique_num_agents = sorted(set(num_agents for num_agents, _ in scenarios))
-lambda_decays = sorted(set(lambda_decay for _, lambda_decay in scenarios))
+unique_num_agents = sorted(set(num_agents for num_agents, _, _ in scenarios))
+lambda_decays = sorted(set(lambda_decay for _, lambda_decay, _ in scenarios))
+alphas = sorted(set(alpha for _, _, alpha in scenarios))
 print(f"Unique number of agents: {unique_num_agents}")
 print(f"Unique lambda decays: {lambda_decays}")
+print(f"Unique alphas: {alphas}")
 
 # --------- Time Series Plot per num_agents with enhanced visualization ----------
 max_time = 600  # seconds
-
 for num_agents in unique_num_agents:
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Pick all lambda values corresponding to this num_agents
     relevant_lambdas = [
-        lambda_decay for (n, lambda_decay) in scenarios if n == num_agents
+        lambda_decay for (n, lambda_decay, _) in scenarios if n == num_agents
     ]
+    relevant_alphas = [
+        alpha_value for (n, _, alpha_value) in scenarios if n == num_agents
+    ]
+    relevant_alphas = set(relevant_alphas)
+    relevant_lambdas = set(relevant_lambdas)
 
+    fix_lambda = list(relevant_lambdas)[0]
+    print(f"{num_agents}")
+    print(f"{relevant_alphas = }")
+    print(f"{relevant_lambdas = }")
+    print(f"{fix_lambda = }")
     # Dictionary to store processed data for calculating statistics
     processed_data = {}
 
-    # First pass - collect data for each lambda value
-    for lambda_decay in relevant_lambdas:
-        processed_data[lambda_decay] = []
+    # First pass - collect data for each alpha value
+    for alpha_value in relevant_alphas:
+        processed_data[alpha_value] = []
         time_series_list, fallen_series_list = fallen_time_series[
-            (num_agents, lambda_decay)
+            (num_agents, fix_lambda, alpha_value)
         ]
 
         for time_series, fallen_series in zip(time_series_list, fallen_series_list):
@@ -93,20 +104,22 @@ for num_agents in unique_num_agents:
             resampled_values = np.interp(
                 common_times, extended_time, extended_cumulative
             )
-            processed_data[lambda_decay].append(resampled_values)
+            processed_data[alpha_value].append(resampled_values)
 
     # Second pass - plot individual runs and statistics
-    for lambda_decay in relevant_lambdas:
+    for alpha_value in relevant_alphas:
         # Choose color based on lambda value
-        if lambda_decay == 0.2:
+        if alpha_value == 0.1:
             color = "teal"  # Teal color for lambda=0.2
-        elif lambda_decay == 0.5:
+        elif alpha_value == 0.3:
             color = "gold"  # Gold color for lambda=0.5
+        elif alpha_value == 0.7:
+            color = "crimson"
         else:
-            color = plt.cm.viridis(lambda_decay / max(lambda_decays))
+            color = plt.cm.viridis(alpha_value / max(alphas))
 
         # Get all resampled time series for this lambda
-        all_series = np.array(processed_data[lambda_decay])
+        all_series = np.array(processed_data[alpha_value])
 
         # Calculate mean and std at each time point
         mean_values = np.mean(all_series, axis=0)
@@ -118,7 +131,7 @@ for num_agents in unique_num_agents:
 
         # Plot individual simulation runs with transparency
         time_series_list, fallen_series_list = fallen_time_series[
-            (num_agents, lambda_decay)
+            (num_agents, fix_lambda, alpha_value)
         ]
         for i, (time_series, fallen_series) in enumerate(
             zip(time_series_list, fallen_series_list)
@@ -158,7 +171,7 @@ for num_agents in unique_num_agents:
             color=color,
             linewidth=3,  # Bold line for mean
             linestyle="-",
-            label=f"λ={lambda_decay} (mean: {final_mean:.0f} ± {final_std:.0f})",
+            label=rf"$\alpha = {alpha_value:.1f},\ \lambda = {fix_lambda:.1f}$  (mean: {final_mean:.0f} $\pm$ {final_std:.0f})",
         )
 
         # Add shaded area for standard deviation
@@ -186,13 +199,13 @@ for num_agents in unique_num_agents:
 
     # Save the figure
     output_file = (
-        Path(output_dir) / f"{stem}_enhanced_fallen_time_series_N{num_agents}.pdf"
+        Path(output_dir) / f"{stem}_enhanced_fallen_time_series_N{num_agents}_alpha.pdf"
     )
     fig.savefig(output_file, dpi=300, bbox_inches="tight")
 
     # Also save as PNG for easier viewing
     png_output = (
-        Path(output_dir) / f"{stem}_enhanced_fallen_time_series_N{num_agents}.png"
+        Path(output_dir) / f"{stem}_enhanced_fallen_time_series_N{num_agents}_alpha.png"
     )
     fig.savefig(png_output, dpi=300, bbox_inches="tight")
 

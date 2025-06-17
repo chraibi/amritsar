@@ -173,6 +173,7 @@ def update_agent_statuses(
     min_x,
     min_y,
     gamma,
+    alpha,
 ):
     """Update agent stamina and handle fallen agents."""
     number_fallen_agents = 0
@@ -194,7 +195,7 @@ def update_agent_statuses(
         # )
 
         # Calculate agent stamina
-        prob = calculate_probability(
+        survival_prob = calculate_probability(
             Point(agent.position),
             elapsed_time,
             agent_lambdas[agent_id],
@@ -214,7 +215,7 @@ def update_agent_statuses(
             p_collapse = 1.0
         else:
             # p_collapse = 1.0 - (base_speed / initial_v0)
-            p_collapse = 1.0 - prob
+            p_collapse = 1.0 - survival_prob
             # this is the same as 1 - prob
             # p_collapse = max(min(p_collapse, 0.8), 0.05)
         # Check if agent should fall
@@ -288,7 +289,7 @@ def remove_or_update_journey(
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
 
-def init_params(num_agents, lambda_decay, num_reps, seed=None):
+def init_params(num_agents, lambda_decay, num_reps, alpha, gamma=0.8, seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
     time_scale = 600  # in seconds = 10 min of shooting
@@ -316,8 +317,8 @@ def init_params(num_agents, lambda_decay, num_reps, seed=None):
         "lambda_decay": lambda_decay,
         "trajectory_file": "",
         "num_reps": num_reps,
-        "shielding_gamma": 0.8,
-        "shielding_alpha": 1.0,  # 1.0 for physical shielding, 0.0 for targeted fire
+        "shielding_gamma": gamma,
+        "shielding_alpha": alpha,  # 1.0 for physical shielding, 0.0 for targeted fire
     }
     params["trajectory_file"] = get_trajectory_name(params)
     return params
@@ -330,9 +331,11 @@ if __name__ == "__main__":
 
     # Define sweeps
     num_agents_list = [5000]  # [15000, 10000, 5000]
-    lambda_decay_list = [0.5]  # [0.2, 0.3]
+    lambda_decay_list = [0.2, 0.3]  # [0.2, 0.3]
     global_seed = 1234
-    num_reps = 1  # 5
+    num_reps = 5  # 5
+    gamma = 0.8
+    alpha = [0.3, 0.7]  # 1.0 for physical shielding, 0.0 for targeted fire
     # Output storage
     evac_times = {}
     dead = {}
@@ -345,18 +348,30 @@ if __name__ == "__main__":
     for num_agents_val in num_agents_list:
         rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
         for lambda_decay_val in lambda_decay_list:
-            for rep_idx in range(num_reps):
-                task = (num_agents_val, lambda_decay_val, rep_idx, rep_seeds[rep_idx])
-                all_tasks.append(task)
+            for alpha_val in alpha:
+                for rep_idx in range(num_reps):
+                    task = (
+                        num_agents_val,
+                        lambda_decay_val,
+                        alpha_val,
+                        rep_idx,
+                        rep_seeds[rep_idx],
+                    )
+                    all_tasks.append(task)
 
-    def run_single_simulation(num_agents_val, lambda_decay_val, rep_idx, seed_val):
+    def run_single_simulation(
+        num_agents_val, lambda_decay_val, alpha_val, rep_idx, seed_val
+    ):
+        """Run a single simulation with given parameters in Parallel."""
         print(
-            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda_decay={lambda_decay_val}"
+            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda_decay={lambda_decay_val}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
         )
         params = init_params(
             num_agents=num_agents_val,
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
+            gamma=gamma,
+            alpha=alpha_val,
             seed=global_seed,  # Important: still base_seed here
         ).copy()
         params["seed"] = seed_val
@@ -367,6 +382,7 @@ if __name__ == "__main__":
         return (
             num_agents_val,
             lambda_decay_val,
+            alpha_val,
             rep_idx,
             run_evacuation_simulation(params=params),
         )
@@ -377,8 +393,8 @@ if __name__ == "__main__":
     )
 
     # Organize the results
-    for num_agents_val, lambda_decay_val, rep_idx, result in results:
-        key = (num_agents_val, lambda_decay_val)
+    for num_agents_val, lambda_decay_val, alpha_val, rep_idx, result in results:
+        key = (num_agents_val, lambda_decay_val, alpha_val)
         if key not in evac_times:
             evac_times[key] = []
             dead[key] = []

@@ -232,9 +232,12 @@ def log_simulation_status(
 
 def get_trajectory_name(params):
     """Create a descriptive trajectory name from simulation parameters."""
+
     name = (
         f"traj/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
+        f"gamma{params['shielding_gamma']:.2f}_"
+        f"alpha{params['shielding_alpha']:.2f}_"
         f"tscale{params['time_scale']}_"
         f"detexit{params['determinism_strength_exits']:.1f}_"
         f"probexit{params['exit_probability']:.1f}_"
