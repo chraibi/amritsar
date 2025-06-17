@@ -68,6 +68,7 @@ def run_evacuation_simulation(params):
     num_agents = params["num_agents"]
     exit_radius = params["wp_radius"]
     gamma = params["shielding_gamma"]
+    alpha = params["shielding_alpha"]
     # Constants
     MAX_SIMULATION_TIME = time_scale
     LAMBDA_VARIATION = 0.1  # variation in lambda values
@@ -111,6 +112,7 @@ def run_evacuation_simulation(params):
                     min_x=min_x,
                     min_y=min_y,
                     gamma=gamma,
+                    alpha=alpha,
                 )
             )
 
@@ -131,14 +133,14 @@ def run_evacuation_simulation(params):
             time_series.append(elapsed_time)
             overall_fallen_positions.extend(fallen_positions)
 
-            # log_simulation_status(
-            #     elapsed_time,
-            #     number_fallen_agents,
-            #     number_active_agents,
-            #     num_agents,
-            #     simulation.agent_count(),
-            #     fallen_status_agents,
-            # )
+            log_simulation_status(
+                elapsed_time,
+                number_fallen_agents,
+                number_active_agents,
+                num_agents,
+                simulation.agent_count(),
+                fallen_status_agents,
+            )
 
             if number_active_agents == 0:
                 break
@@ -200,6 +202,7 @@ def update_agent_statuses(
             walkable_area,
             shielding=shielding,
             gamma=gamma,
+            alpha=alpha,
             rng=rng,
         )
 
@@ -314,6 +317,7 @@ def init_params(num_agents, lambda_decay, num_reps, seed=None):
         "trajectory_file": "",
         "num_reps": num_reps,
         "shielding_gamma": 0.8,
+        "shielding_alpha": 1.0,  # 1.0 for physical shielding, 0.0 for targeted fire
     }
     params["trajectory_file"] = get_trajectory_name(params)
     return params
@@ -325,10 +329,10 @@ if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
     # Define sweeps
-    num_agents_list = [15000, 10000, 5000]
-    lambda_decay_list = [0.2, 0.3]
+    num_agents_list = [5000]  # [15000, 10000, 5000]
+    lambda_decay_list = [0.5]  # [0.2, 0.3]
     global_seed = 1234
-    num_reps = 5
+    num_reps = 1  # 5
     # Output storage
     evac_times = {}
     dead = {}

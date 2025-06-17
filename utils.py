@@ -123,14 +123,29 @@ def distribute_agents(num_agents, seed, spawning_area):
     return pos_in_spawning_area
 
 
-def adjusted_probability(base_prob, shielding, gamma):
-    """Shielding enhances the survival chances."""
-    boosted_prob = base_prob * (1 + gamma * shielding)
-    return min(boosted_prob, 1.0)  # clamp to 1.0
+def adjusted_probability(base_prob, shielding, gamma, alpha):
+    """Shielding enhances the survival chances.
+
+    alpha = 1.0 → physical shielding (more neighbors = safer)
+    alpha = 0.0 → targeted fire (more neighbors = more dangerous)
+    """
+    crowd_exposure = 1.0 - shielding  # inverse of shielding
+    hybrid_factor = alpha * shielding + (1 - alpha) * crowd_exposure
+
+    adjusted_prob = base_prob * (1 + gamma * hybrid_factor)
+    return min(adjusted_prob, 1.0)  # clamp to 1.0
 
 
 def calculate_probability(
-    point, time_elapsed, lambda_decay, time_scale, walkable_area, shielding, gamma, rng
+    point,
+    time_elapsed,
+    lambda_decay,
+    time_scale,
+    walkable_area,
+    shielding,
+    gamma,
+    alpha,
+    rng,
 ):
     """Calculate the probability of survival for an agent."""
     min_x, _, max_x, _ = walkable_area.bounds
@@ -146,8 +161,9 @@ def calculate_probability(
     distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
     noise = rng.uniform(0.95, 1.05)
     probability = distance_factor * time_factor * noise
-
-    probability2 = adjusted_probability(probability, shielding, gamma=gamma)
+    probability2 = adjusted_probability(
+        probability, shielding, gamma=gamma, alpha=alpha
+    )
     return probability2
 
 

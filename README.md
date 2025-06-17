@@ -1,9 +1,9 @@
 
 
-- plot_time_series_only.py: 
+- **plot_cumulative_fallen_agents_time.py:** 
   plots Cumulative time series of fallen people for different initial number of pedestrians for different λ values
 
-- heatmap.py: 
+- **heatmap.py:** 
   Plots many png figure of the survival heatmap.
-- plot_heatmap_once.py: 
+- **plot_heatmap_once.py:** 
   Plots a pdf file of the survival heatmap. Once for a fixed lambda
