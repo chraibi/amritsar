@@ -78,7 +78,8 @@ def setup_simulation(params, rng):
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
         seed=params["seed"],  # TODO seed but lets take same for all
-        spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
+        spawning_area=params["walkable_area"],
+        # intersection(params["spawning_area"], params["walkable_area"]),
     )
     v_distribution = normal(params["v0_max"], 0.05, num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
@@ -136,6 +137,15 @@ def adjusted_probability(base_prob, shielding, gamma, alpha):
     return min(adjusted_prob, 1.0)  # clamp to 1.0
 
 
+def compute_max_risk(xmin, ymin, ymax, sigma, n_shooters):
+    y_center = 0.5 * (ymin + ymax)
+    shooter_ys = np.linspace(ymin, ymax, n_shooters)
+    risk = sum(
+        1 / (1 + ((0) ** 2 + (y_center - y) ** 2) / sigma**2) for y in shooter_ys
+    )
+    return risk
+
+
 def calculate_probability(
     point,
     time_elapsed,
@@ -146,25 +156,60 @@ def calculate_probability(
     gamma,
     alpha,
     rng,
+    p_min=0.05,
+    p_max=0.95,
+    sigma=40.0,
+    n_shooters=50,
 ):
-    """Calculate the probability of survival for an agent."""
-    min_x, _, max_x, _ = walkable_area.bounds
-    distance_to_left = point.x - min_x
-    # todo: add some min distance then people may be initially a bit further from the danger line
-    # max_distance = max_x - min_x
-    # distance_factor = distance_to_left / max_distance
+    """Calculate the probability of survival for an agent using spatial exposure model."""
+
+    # Spatial bounds
+    min_x, min_y, max_x, max_y = walkable_area.bounds
+
+    # Shooter line along x = min_x from min_y to max_y
+    shooter_ys = np.linspace(min_y, max_y, n_shooters)
+
+    # Compute exposure risk from all shooter positions
+    risk = 0
+    # calculate may risk of exposure based on distance to shooters
+    for shooter_y in shooter_ys:
+        dx = point.x - min_x
+        dy = point.y - shooter_y
+        risk += 1 / (1 + (dx**2 + dy**2) / sigma**2)
+
+    # Normalize risk by maximum possible value (i.e. at min_x, shooter_y=center)
+    max_risk = 29.558  # compute_max_risk(min_x, min_y, max_y, sigma, n_shooters)
+    risk_norm = risk / max_risk
+
+    # Convert to survival probability in [p_min, p_max]
+    base_survival_prob = p_min + (1 - risk_norm) * (p_max - p_min)
+
+    # Apply small noise
+    noise = rng.uniform(0.95, 1.05)
+    noisy_survival_prob = np.clip(base_survival_prob * noise, p_min, p_max)
+
+    # Time factor
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
-    # distance_factor = 1 - np.exp(-2 * (distance_to_left / max_distance))
-    d_crit = 10
-    k = 5
-    distance_factor = 1 / (1 + np.exp(-(distance_to_left - d_crit) / k))
-    noise = rng.uniform(0.95, 1.05)
-    probability = distance_factor * time_factor * noise
-    probability2 = adjusted_probability(
-        probability, shielding, gamma=gamma, alpha=alpha
+
+    # Combine with time
+    combined_prob = noisy_survival_prob * time_factor
+
+    # Apply shielding
+    probability_final = adjusted_probability(
+        combined_prob, shielding, gamma=gamma, alpha=alpha
     )
-    return probability2
+
+    # print(
+    #     f"{point.x:.2f}",
+    #     f"{point.y:.2f}",
+    #     f"{risk_norm:.3f}",
+    #     f"{noisy_survival_prob:.3f}",
+    #     f"{time_factor:.3f}",
+    #     f"{probability_final:.3f}",
+    # )
+
+    return probability_final
 
 
 def get_nearest_exit_id(
