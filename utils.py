@@ -78,8 +78,8 @@ def setup_simulation(params, rng):
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
         seed=params["seed"],  # TODO seed but lets take same for all
-        spawning_area=params["walkable_area"],
-        # intersection(params["spawning_area"], params["walkable_area"]),
+        # spawning_area=params["walkable_area"],
+        spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
     )
     v_distribution = normal(params["v0_max"], 0.05, num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
@@ -156,9 +156,9 @@ def calculate_probability(
     gamma,
     alpha,
     rng,
+    sigma,
     p_min=0.05,
     p_max=0.95,
-    sigma=40.0,
     n_shooters=50,
 ):
     """Calculate the probability of survival for an agent using spatial exposure model."""

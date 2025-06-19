@@ -31,7 +31,7 @@ import hashlib
 
 def generate_seeds(base_seed, num_reps):
     """
-    Generate a list of reproducible, widely spaced seeds using a base seed.
+    Generate a list of reproducible, widely spacerd seeds using a base seed.
 
     Args:
         base_seed (int): The fixed base seed for reproducibility.
@@ -69,6 +69,7 @@ def run_evacuation_simulation(params):
     exit_radius = params["wp_radius"]
     gamma = params["shielding_gamma"]
     alpha = params["shielding_alpha"]
+    sigma = params["sigma"]
     # Constants
     MAX_SIMULATION_TIME = time_scale
     LAMBDA_VARIATION = 0.1  # variation in lambda values
@@ -111,6 +112,7 @@ def run_evacuation_simulation(params):
                     rng=rng,
                     min_x=min_x,
                     min_y=min_y,
+                    sigma=sigma,
                     gamma=gamma,
                     alpha=alpha,
                 )
@@ -172,6 +174,7 @@ def update_agent_statuses(
     rng,
     min_x,
     min_y,
+    sigma,
     gamma,
     alpha,
 ):
@@ -204,6 +207,7 @@ def update_agent_statuses(
             shielding=shielding,
             gamma=gamma,
             alpha=alpha,
+            sigma=sigma,
             rng=rng,
         )
 
@@ -221,17 +225,17 @@ def update_agent_statuses(
         # Check if agent should fall
         rn_number = np.random.rand()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
-            if num_collapse_attempts < max_collapse_this_step:
-                number_fallen_agents += 1
-                num_collapse_attempts += 1
-                fallen_status_agents[agent_id] = True
-                agent.model.v0 = 0
-                v_distribution[agent_id] = 0
-                fallen_positions.append(tuple(agent.position))
+            # if True:  # num_collapse_attempts < max_collapse_this_step:
+            number_fallen_agents += 1
+            num_collapse_attempts += 1
+            fallen_status_agents[agent_id] = True
+            agent.model.v0 = 0
+            v_distribution[agent_id] = 0
+            fallen_positions.append(tuple(agent.position))
 
             # Count active agents
-            else:
-                number_active_agents += 1
+            # else:
+            #    number_active_agents += 1
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
         # print(
@@ -289,15 +293,15 @@ def remove_or_update_journey(
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
 
-def init_params(num_agents, lambda_decay, num_reps, alpha, gamma=0.8, seed=None):
+def init_params(num_agents, lambda_decay, num_reps, alpha, sigma, gamma=0.8, seed=None):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
     time_scale = 600  # in seconds = 10 min of shooting
     update_time = 10  # in seconds
-    v0_max = 3  # m/s
+    v0_max = 3.0  # m/s
     # Add some variability to avoid synchronized agent falls
     determinism_strength_exits = 0.2
-    exit_probability = 0.2
+    exit_probability = 0.1
     if not seed:
         seed = random.randint(1, 10000)
 
@@ -319,6 +323,7 @@ def init_params(num_agents, lambda_decay, num_reps, alpha, gamma=0.8, seed=None)
         "num_reps": num_reps,
         "shielding_gamma": gamma,
         "shielding_alpha": alpha,  # 1.0 for physical shielding, 0.0 for targeted fire
+        "sigma": sigma,  # for space_factor
     }
     params["trajectory_file"] = get_trajectory_name(params)
     return params
@@ -330,12 +335,13 @@ if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
     # Define sweeps
-    num_agents_list = [5000]  # [15000, 10000, 5000]
-    lambda_decay_list = [0.2, 0.3]  # [0.2, 0.3]
+    num_agents_list = [5000]  #  [15000, 10000]
+    lambda_decay_list = [0.5]  # [0.2, 0.3]
     global_seed = 1234
-    num_reps = 5  # 5
+    num_reps = 1  # 5
     gamma = 0.8
-    alpha = [0.3, 0.7]  # 1.0 for physical shielding, 0.0 for targeted fire
+    sigma = 100
+    alpha = [0.3]  # [0.3, 0.7]  1.0 for physical shielding, 0.0 for targeted fire
     # Output storage
     evac_times = {}
     dead = {}
@@ -354,23 +360,25 @@ if __name__ == "__main__":
                         num_agents_val,
                         lambda_decay_val,
                         alpha_val,
+                        sigma,
                         rep_idx,
                         rep_seeds[rep_idx],
                     )
                     all_tasks.append(task)
 
     def run_single_simulation(
-        num_agents_val, lambda_decay_val, alpha_val, rep_idx, seed_val
+        num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val
     ):
         """Run a single simulation with given parameters in Parallel."""
         print(
-            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda_decay={lambda_decay_val}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
+            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma = {sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
         )
         params = init_params(
             num_agents=num_agents_val,
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
             gamma=gamma,
+            sigma=sigma,
             alpha=alpha_val,
             seed=global_seed,  # Important: still base_seed here
         ).copy()
