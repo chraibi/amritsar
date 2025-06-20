@@ -25,8 +25,8 @@ Key features include:
 
 1. **Clone the repository:**
 ```bash
-git clone <repository-url>
-cd amritsar-abm-simulation
+git clone https://github.com/chraibi/amritsar.git
+cd amritsar
 ```
 
 2. **Create a virtual environment:**
