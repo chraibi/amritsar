@@ -142,11 +142,14 @@ for t in [0, 200, 400, 600]:
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.2f}"))
 
     ax.set_title(f"time = {t} s", fontsize=fs)
+
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
 
     ax.set_xticklabels(ax.get_xticks(), fontsize=fs)
     ax.set_yticklabels(ax.get_yticks(), fontsize=fs)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
 
     # Plot outline of walkable area and holes
     x_outer, y_outer = walkable_area.exterior.xy
