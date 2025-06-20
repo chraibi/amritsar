@@ -21,7 +21,7 @@ with open(save_path, "rb") as f:
 evac_times = loaded_data["evac_times"]
 dead = loaded_data["dead"]
 fallen_time_series = loaded_data["fallen_time_series"]
-cl = loaded_data["cl"]
+# cl = loaded_data["cl"]
 print("Simulation data successfully loaded.")
 
 # Parse geometry

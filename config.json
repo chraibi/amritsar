@@ -1,6 +1,6 @@
 {
     "num_reps": 5,
-    "num_agents_list": [5000],
+    "num_agents_list": [5000, 10000, 15000],
     "lambda_decay_list": [0.2],
     "alpha_list": [0.3, 0.7],
     "gamma": 0.8,

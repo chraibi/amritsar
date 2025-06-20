@@ -15,6 +15,7 @@ import json
 import numpy as np
 from joblib import Parallel, delayed
 from shapely import Point
+import logging
 
 from utils import (
     calculate_probability,
@@ -25,8 +26,16 @@ from utils import (
     maybe_remove_agent,
     setup_geometry,
     setup_simulation,
+    save_simulation_results,
 )
 import hashlib
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+DEFAULT_CONFIG_FILE = "config.json"
+DEFAULT_OUTPUT_DIR = "fig_results"
 
 
 def generate_seeds(base_seed, num_reps):
@@ -54,7 +63,6 @@ def generate_seeds(base_seed, num_reps):
 def run_evacuation_simulation(params):
     """Run an evacuation simulation with agent stamina decay over time."""
     seed = params["seed"]
-    # print(f"seeding with {seed}")
     rng = np.random.default_rng(seed)
     # Create simulation
     simulation, exit_ids, journey_ids = setup_simulation(params, rng)
@@ -153,8 +161,8 @@ def run_evacuation_simulation(params):
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
 
-    print(
-        f"[INFO] Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {sum(fallen_over_time)}"
+    logging.info(
+        f"Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {sum(fallen_over_time)}"
     )
 
     return (
@@ -310,7 +318,7 @@ def init_params(
     determinism_strength_exits = config["determinism_strength_exits"]
     exit_probability = config["exit_probability"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
-    print(
+    logging.info(
         f"\t\ttime_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
     )
     # =============================================================
@@ -359,7 +367,7 @@ if __name__ == "__main__":
 
     # ========================= SWEEP PARAMETERS =========================
     # Load sweep parameters from config file
-    config = load_sweep_config("config.json")
+    config = load_sweep_config(DEFAULT_CONFIG_FILE)
 
     num_agents_list = config["num_agents_list"]
     lambda_decay_list = config["lambda_decay_list"]
@@ -444,20 +452,11 @@ if __name__ == "__main__":
         fallen_time_series[key][1].append(result[3])
         cl[key].append(result[4])
 
-    # Saving all collected data
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_dir = "fig_results"
-    os.makedirs(output_dir, exist_ok=True)
-
-    save_path = f"{output_dir}/sweep_simulation_data_{timestamp}.pkl"
-    data_to_save = {
-        "evac_times": evac_times,
-        "dead": dead,
-        "fallen_time_series": fallen_time_series,
-        "cl": cl,
-    }
-
-    with open(save_path, "wb") as f:
-        pickle.dump(data_to_save, f)
-
-    print(f"Sweep simulation results saved to {save_path}")
+    results_file, summary_file = save_simulation_results(
+        evac_times=evac_times,
+        dead=dead,
+        fallen_time_series=fallen_time_series,
+        cl=cl,
+        config=config,
+        output_dir=DEFAULT_OUTPUT_DIR,
+    )

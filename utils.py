@@ -9,6 +9,13 @@ from numpy.random import normal
 from shapely import LinearRing, Point, Polygon, intersection
 
 import read_geometry as rr
+import time
+import json
+import sys
+import platform
+import os
+import pickle
+import logging
 
 
 def setup_geometry():
@@ -277,7 +284,6 @@ def log_simulation_status(
 
 def get_trajectory_name(params):
     """Create a descriptive trajectory name from simulation parameters."""
-
     name = (
         f"traj/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
@@ -289,3 +295,167 @@ def get_trajectory_name(params):
         f"seed{params['seed']}"
     )
     return name
+
+
+def save_simulation_results(
+    evac_times, dead, fallen_time_series, cl, config, output_dir="fig_results"
+):
+    """
+    Save simulation results along with configuration and metadata.
+
+    Args:
+        evac_times: Dictionary of evacuation times
+        dead: Dictionary of dead agents
+        fallen_time_series: Dictionary of fallen agent time series
+        cl: Dictionary of fallen positions
+        config: Configuration dictionary used for the simulation
+        output_dir: Output directory for results
+    """
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    output_subdir = f"{output_dir}/{timestamp}"
+    results_file = f"{output_subdir}/sweep_simulation_data_{timestamp}.pkl"
+    os.makedirs(output_subdir, exist_ok=True)
+
+    metadata = {
+        "timestamp": timestamp,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "total_parameter_combinations": len(evac_times),
+        "filename": results_file,
+        "simulation_description": "Amritsar Massacre ABM Simulation - Parameter Sweep Results",
+    }
+
+    summary_stats = calculate_summary_statistics(evac_times, dead, fallen_time_series)
+    data_to_save = {
+        # Metadata and configuration
+        "metadata": metadata,
+        "config": config,
+        "summary_statistics": summary_stats,
+        # Raw simulation results
+        "evac_times": evac_times,
+        "dead": dead,
+        "fallen_time_series": fallen_time_series,
+        "results": cl,
+        # Data structure documentation
+        "data_structure_info": {
+            "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of evacuation times",
+            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of dead agent counts",
+            "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha) containing (time_series, fallen_counts) tuples",
+            "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of fallen agent positions",
+        },
+    }
+
+    with open(results_file, "wb") as f:
+        pickle.dump(data_to_save, f)
+
+    summary_file = f"{output_subdir}/simulation_summary_{timestamp}.json"
+    save_human_readable_summary(data_to_save, summary_file)
+
+    logging.info(f"Simulation results saved to: {results_file}")
+    logging.info(f"Summary saved to: {summary_file}")
+
+    return results_file, summary_file
+
+
+def calculate_summary_statistics(evac_times, dead, fallen_time_series):
+    """Calculate summary statistics for the simulation results."""
+    import numpy as np
+
+    summary = {
+        "parameter_combinations": {},
+        "overall_statistics": {
+            "total_simulations_run": 0,
+            "avg_evacuation_time": 0,
+            "avg_casualties": 0,
+            "parameter_ranges": {},
+        },
+    }
+
+    all_evac_times = []
+    all_casualties = []
+
+    for key, evac_list in evac_times.items():
+        num_agents, lambda_decay, alpha = key
+        dead_list = dead[key]
+
+        # Calculate statistics for this parameter combination
+        param_stats = {
+            "num_agents": num_agents,
+            "lambda_decay": lambda_decay,
+            "alpha": alpha,
+            "num_repetitions": len(evac_list),
+            "evacuation_time": {
+                "mean": np.mean(evac_list),
+                "std": np.std(evac_list),
+                "min": np.min(evac_list),
+                "max": np.max(evac_list),
+            },
+            "casualties": {
+                "mean": np.mean(dead_list),
+                "std": np.std(dead_list),
+                "min": np.min(dead_list),
+                "max": np.max(dead_list),
+            },
+        }
+
+        summary["parameter_combinations"][str(key)] = param_stats
+        all_evac_times.extend(evac_list)
+        all_casualties.extend(dead_list)
+        summary["overall_statistics"]["total_simulations_run"] += len(evac_list)
+
+    # Overall statistics
+    if all_evac_times:
+        summary["overall_statistics"]["avg_evacuation_time"] = np.mean(all_evac_times)
+        summary["overall_statistics"]["avg_casualties"] = np.mean(all_casualties)
+
+    # Parameter ranges
+    if evac_times:
+        all_keys = list(evac_times.keys())
+        num_agents_vals = [k[0] for k in all_keys]
+        lambda_vals = [k[1] for k in all_keys]
+        alpha_vals = [k[2] for k in all_keys]
+
+        summary["overall_statistics"]["parameter_ranges"] = {
+            "num_agents": {"min": min(num_agents_vals), "max": max(num_agents_vals)},
+            "lambda_decay": {"min": min(lambda_vals), "max": max(lambda_vals)},
+            "alpha": {"min": min(alpha_vals), "max": max(alpha_vals)},
+        }
+
+    return summary
+
+
+def save_human_readable_summary(data, filename):
+    """Save a human-readable JSON summary of the simulation."""
+    # Create a version that's JSON-serializable
+    json_safe_data = {
+        "metadata": data["metadata"],
+        "config": data["config"],
+        "summary_statistics": data["summary_statistics"],
+        "data_structure_info": data["data_structure_info"],
+    }
+
+    with open(filename, "w") as f:
+        json.dump(json_safe_data, f, indent=2, default=str)
+
+
+def load_simulation_results(filepath):
+    """
+    Load simulation results from a saved file.
+
+    Args:
+        filepath: Path to the saved .pkl file
+
+    Returns:
+        Dictionary containing all simulation data
+    """
+    with open(filepath, "rb") as f:
+        data = pickle.load(f)
+
+    logging.info(f"Loaded simulation data from: {filepath}")
+    logging.info(f"Simulation timestamp: {data['metadata']['timestamp']}")
+    logging.info(
+        f"Total parameter combinations: {data['metadata']['total_parameter_combinations']}"
+    )
+    logging.info(f"Configuration used: {len(data['config'])} parameters")
+
+    return data
