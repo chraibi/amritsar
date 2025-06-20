@@ -1,10 +1,13 @@
 # Rethinking the Amritsar Massacre through Agent-Based Modeling and Social Psychology
 
-This repository contains an agent-based modeling (ABM) simulation that models crowd evacuation dynamics during crisis scenarios, specifically inspired by the Amritsar Massacre. The simulation incorporates social psychology principles to understand how crowd behavior, and spatial constraints affect evacuation outcomes.
+This repository contains an agent-based modeling (ABM) simulation that models crowd evacuation dynamics during crisis scenarios, specifically inspired by the Amritsar Massacre. 
+The simulation is built using [JuPedSim](jupedsim.org), a software for simulating pedestrian dynamics, and incorporates social psychology principles to understand how crowd behavior, and spatial constraints affect evacuation outcomes.
+
 
 ## Overview
 
-The simulation models agents (pedestrians) attempting to evacuate from a confined space under crisis conditions. 
+The simulation models agents (pedestrians) attempting to evacuate from a confined space under crisis conditions using the [JuPedSim](jupedsim.org) pedestrian dynamics software. 
+
 Key features include:
 
 - **Stamina decay over time**: Agents' movement speed decreases based on exposure time and distance to exits
