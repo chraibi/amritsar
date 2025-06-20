@@ -11,7 +11,7 @@ import os
 import pickle
 import random
 import time
-
+import json
 import numpy as np
 from joblib import Parallel, delayed
 from shapely import Point
@@ -293,27 +293,42 @@ def remove_or_update_journey(
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
 
 
-def init_params(num_agents, lambda_decay, num_reps, alpha, sigma, gamma=0.8, seed=None):
+def init_params(
+    num_agents,
+    lambda_decay,
+    num_reps,
+    alpha,
+    sigma,
+    config,
+    gamma=0.8,
+    seed=None,
+):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
-    time_scale = 600  # in seconds = 10 min of shooting
-    update_time = 10  # in seconds
-    v0_max = 3.0  # m/s
+    time_scale = config["time_scale"]  # in seconds = 10 min of shooting
+    update_time = config["update_time"]  # in seconds
+    v0_max = config["v0_max"]  # m/s
     # Add some variability to avoid synchronized agent falls
-    determinism_strength_exits = 0.2
-    exit_probability = 0.1
+    determinism_strength_exits = config["determinism_strength_exits"]
+    exit_probability = config["exit_probability"]
+    wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
+    print(
+        f"\t\ttime_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
+    )
+    # =============================================================
     if not seed:
         seed = random.randint(1, 10000)
 
     params = {
+        # ================================= SIMULATION PARAMETERS ========
         "num_agents": num_agents,  # Number of agents in simulation
         "v0_max": v0_max,  # Maximum agent velocity (3 m/s)
         "seed": seed,
         "walkable_area": walkable_area,
         "spawning_area": spawning_area,
         "exit_areas": exit_areas,
-        "wp_radius": 10,
-        # ====
+        "wp_radius": wp_radius,
+        # ============================= AGENT PARAMETERS ============
         "time_scale": time_scale,  # 600 seconds = 10 min of simulation time
         "update_time": update_time,  # How often to update agent status (10 seconds)
         "determinism_strength_exits": determinism_strength_exits,  # Controls randomness in exit selection (0.2)
@@ -330,18 +345,27 @@ def init_params(num_agents, lambda_decay, num_reps, alpha, sigma, gamma=0.8, see
 
 
 # ============================================================
+def load_sweep_config(config_file):
+    """Load simulation configuration from a JSON file."""
+    with open(config_file, "r") as f:
+        return json.load(f)
+
 
 if __name__ == "__main__":
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
-    # Define sweeps
-    num_agents_list = [5000]  #  [15000, 10000]
-    lambda_decay_list = [0.5]  # [0.2, 0.3]
-    global_seed = 1234
-    num_reps = 1  # 5
-    gamma = 0.8
-    sigma = 100
-    alpha = [0.3]  # [0.3, 0.7]  1.0 for physical shielding, 0.0 for targeted fire
+    # ========================= SWEEP PARAMETERS =========================
+    # Load sweep parameters from config file
+    config = load_sweep_config("config.json")
+
+    num_agents_list = config["num_agents_list"]
+    lambda_decay_list = config["lambda_decay_list"]
+    alpha_list = config["alpha_list"]
+    num_reps = config["num_reps"]
+    gamma = config["gamma"]
+    sigma = config["sigma"]
+    global_seed = config["global_seed"]
+    # ================================================================
     # Output storage
     evac_times = {}
     dead = {}
@@ -354,7 +378,7 @@ if __name__ == "__main__":
     for num_agents_val in num_agents_list:
         rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
         for lambda_decay_val in lambda_decay_list:
-            for alpha_val in alpha:
+            for alpha_val in alpha_list:
                 for rep_idx in range(num_reps):
                     task = (
                         num_agents_val,
@@ -363,11 +387,12 @@ if __name__ == "__main__":
                         sigma,
                         rep_idx,
                         rep_seeds[rep_idx],
+                        config,
                     )
                     all_tasks.append(task)
 
     def run_single_simulation(
-        num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val
+        num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val, config
     ):
         """Run a single simulation with given parameters in Parallel."""
         print(
@@ -377,6 +402,7 @@ if __name__ == "__main__":
             num_agents=num_agents_val,
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
+            config=config,
             gamma=gamma,
             sigma=sigma,
             alpha=alpha_val,

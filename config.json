@@ -1,0 +1,17 @@
+{
+    "num_reps": 5,
+    "num_agents_list": [5000],
+    "lambda_decay_list": [0.2],
+    "alpha_list": [0.3, 0.7],
+    "gamma": 0.8,
+    "sigma": 30,
+    "global_seed": 1234,
+    "time_scale": 600,
+    "update_time": 10,
+    "v0_max": 3.0,
+    "_comment": "Add some variability to avoid synchronized agent falls",
+    "determinism_strength_exits": 0.2,
+    "exit_probability": 0.1,
+    "_comment_wp_radius": "This is the radius around the waypoint where agents can be considered as having reached it",
+    "wp_radius": 10
+}
