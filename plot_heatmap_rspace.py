@@ -145,6 +145,9 @@ for t in [0, 200, 400, 600]:
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
 
+    ax.set_xticklabels(ax.get_xticks(), fontsize=fs)
+    ax.set_yticklabels(ax.get_yticks(), fontsize=fs)
+
     # Plot outline of walkable area and holes
     x_outer, y_outer = walkable_area.exterior.xy
     ax.plot(x_outer, y_outer, color="black", linewidth=1)
