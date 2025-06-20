@@ -72,7 +72,7 @@ def run_evacuation_simulation(params):
     sigma = params["sigma"]
     # Constants
     MAX_SIMULATION_TIME = time_scale
-    LAMBDA_VARIATION = 0.1  # variation in lambda values
+    LAMBDA_VARIATION = params["LAMBDA_VARIATION"]  # variation in lambda values
 
     # Tracking data structures
     fallen_over_time = []
@@ -115,6 +115,8 @@ def run_evacuation_simulation(params):
                     sigma=sigma,
                     gamma=gamma,
                     alpha=alpha,
+                    radius_around=params["radius_around"],
+                    n_max=params["n_max"],
                 )
             )
 
@@ -177,15 +179,16 @@ def update_agent_statuses(
     sigma,
     gamma,
     alpha,
+    radius_around,
+    n_max,
 ):
     """Update agent stamina and handle fallen agents."""
     number_fallen_agents = 0
     number_active_agents = 0
     fallen_positions = []
-    max_collapse_this_step = 250  # 125 for more conservative values
     num_collapse_attempts = 0
-    radius_around = 1.5  # Covers about 7 m²
-    n_max = 12  # Full shielding at ~1.7 persons/m²
+    radius_around = radius_around  # Covers about 7 m²
+    n_max = n_max  # Full shielding at ~1.7 persons/m²
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -211,21 +214,16 @@ def update_agent_statuses(
             rng=rng,
         )
 
-        # base_speed = initial_v0 * prob
         # small prob -> p_collapse big
         # Higher pcollapse → more likely to collapse
         # Lower pcollapse → less likely to collapse
         if initial_v0 == 0:
             p_collapse = 1.0
         else:
-            # p_collapse = 1.0 - (base_speed / initial_v0)
             p_collapse = 1.0 - survival_prob
-            # this is the same as 1 - prob
-            # p_collapse = max(min(p_collapse, 0.8), 0.05)
         # Check if agent should fall
         rn_number = np.random.rand()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
-            # if True:  # num_collapse_attempts < max_collapse_this_step:
             number_fallen_agents += 1
             num_collapse_attempts += 1
             fallen_status_agents[agent_id] = True
@@ -339,6 +337,11 @@ def init_params(
         "shielding_gamma": gamma,
         "shielding_alpha": alpha,  # 1.0 for physical shielding, 0.0 for targeted fire
         "sigma": sigma,  # for space_factor
+        "radius_around": config[
+            "radius_around"
+        ],  # Radius around agent to consider neighbors
+        "n_max": config["n_max"],  # Maximum number of neighbors for full shielding
+        "LAMBDA_VARIATION": config["LAMBDA_VARIATION"],  # Variation in lambda values
     }
     params["trajectory_file"] = get_trajectory_name(params)
     return params

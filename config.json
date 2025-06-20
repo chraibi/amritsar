@@ -13,5 +13,8 @@
     "determinism_strength_exits": 0.2,
     "exit_probability": 0.1,
     "_comment_wp_radius": "This is the radius around the waypoint where agents can be considered as having reached it",
-    "wp_radius": 10
+    "wp_radius": 10,
+    "radius_around": 1.5,
+    "n_max": 12,
+    "LAMBDA_VARIATION": 0.1
 }
