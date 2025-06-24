@@ -284,6 +284,7 @@ def log_simulation_status(
 
 def get_trajectory_name(params):
     """Create a descriptive trajectory name from simulation parameters."""
+    os.makedirs("traj", exist_ok=True)
     name = (
         f"traj/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
