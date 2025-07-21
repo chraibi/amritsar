@@ -46,6 +46,7 @@ def plot_causality_grid(
         extent=extent,
         cmap=color_map,
         interpolation="lanczos",
+        vmax=20,
     )
 
     pedpy.plot_walkable_area(
