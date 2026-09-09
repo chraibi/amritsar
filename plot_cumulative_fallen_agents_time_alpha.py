@@ -53,7 +53,7 @@ for num_agents in unique_num_agents:
             (num_agents, fix_lambda, alpha_value)
         ]
 
-        for time_series, fallen_series in zip(time_series_list, fallen_series_list):
+        for time_series, fallen_series in zip(time_series_list, fallen_series_list, strict=False):
             cumulative_fallen = np.cumsum(fallen_series)
 
             # Extend all time series to max_time for proper comparison
@@ -113,8 +113,8 @@ for num_agents in unique_num_agents:
         time_series_list, fallen_series_list = fallen_time_series[
             (num_agents, fix_lambda, alpha_value)
         ]
-        for i, (time_series, fallen_series) in enumerate(
-            zip(time_series_list, fallen_series_list)
+        for _i, (time_series, fallen_series) in enumerate(
+            zip(time_series_list, fallen_series_list, strict=False)
         ):
             cumulative_fallen = np.cumsum(fallen_series)
 

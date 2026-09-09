@@ -68,7 +68,7 @@ def export_trajectory_to_txt(
     speeds = []
     frame_indices = []
 
-    for traj_id, group in df_data.groupby("id"):
+    for _traj_id, group in df_data.groupby("id"):
         # Sort by frame within each trajectory
         group = group.sort_values(by="frame")
         traj = group[["x", "y"]].values

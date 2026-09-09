@@ -241,10 +241,7 @@ def update_agent_statuses(
         # small prob -> p_collapse big
         # Higher pcollapse → more likely to collapse
         # Lower pcollapse → less likely to collapse
-        if initial_v0 == 0:
-            p_collapse = 1.0
-        else:
-            p_collapse = 1.0 - survival_prob
+        p_collapse = 1.0 if initial_v0 == 0 else 1.0 - survival_prob
         # Check if agent should fall
         rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
@@ -276,7 +273,7 @@ def remove_or_update_journey(
         # Only process movement for active agents
         if not fallen_status_agents[agent.id]:
             # Try to remove agent if near exit
-            for exit_area, exit_id in zip(exit_areas, exit_ids):
+            for exit_area, _exit_id in zip(exit_areas, exit_ids, strict=False):
                 agent_to_be_removed = maybe_remove_agent(
                     simulation,
                     agent,
@@ -376,7 +373,7 @@ def init_params(
 # ============================================================
 def load_sweep_config(config_file):
     """Load simulation configuration from a JSON file."""
-    with open(config_file, "r") as f:
+    with open(config_file) as f:
         return json.load(f)
 
 
@@ -473,7 +470,7 @@ if __name__ == "__main__":
     )
 
     # Organize the results
-    for num_agents_val, lambda_decay_val, alpha_val, rep_idx, result in results:
+    for num_agents_val, lambda_decay_val, alpha_val, _rep_idx, result in results:
         key = (num_agents_val, lambda_decay_val, alpha_val)
         if key not in evac_times:
             evac_times[key] = []

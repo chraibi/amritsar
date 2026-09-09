@@ -1,7 +1,6 @@
 """Utility functions for running main.py."""
 
 import pathlib
-from typing import List, Tuple
 
 import jupedsim as jps
 import numpy as np
@@ -91,7 +90,7 @@ def setup_simulation(params, rng):
         distance_to_polygon=params["distance_to_polygon"],
     )
     v_distribution = rng.normal(params["v0_max"], params["v0_std"], num_agents)
-    for pos, v0 in zip(pos_in_spawning_area, v_distribution):
+    for pos, v0 in zip(pos_in_spawning_area, v_distribution, strict=False):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,
             exit_areas,
@@ -217,12 +216,12 @@ def calculate_probability(
 
 def get_nearest_exit_id(
     position: Point,
-    exit_areas: List[Polygon],
-    exit_ids: List[int],
-    journey_ids: List[int],
+    exit_areas: list[Polygon],
+    exit_ids: list[int],
+    journey_ids: list[int],
     rng,
     determinism_strength: float = 1.0,
-) -> Tuple[int, int, float]:
+) -> tuple[int, int, float]:
     """
     Return a random exit ID and its distance, with bias toward the nearest exit.
 
@@ -252,10 +251,9 @@ def maybe_remove_agent(
 ):
     """Probabilistically remove agent if they are near an exit centroid."""
     distance_to_exit = Point(agent.position).distance(exit_area.centroid)
-    if distance_to_exit < exit_radius:
-        if rng.random() < exit_probability:
-            simulation.mark_agent_for_removal(agent.id)
-            return True
+    if distance_to_exit < exit_radius and rng.random() < exit_probability:
+        simulation.mark_agent_for_removal(agent.id)
+        return True
     return False
 
 

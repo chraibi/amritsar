@@ -1,5 +1,5 @@
 from shapely import wkt
-from shapely.geometry import Polygon, LinearRing, Point
+from shapely.geometry import Point
 import numpy as np
 
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable

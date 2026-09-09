@@ -124,7 +124,7 @@ def create_analysis_plots(data):
     # ax4 = fig.add_subplot(gs[1, 0:2])
     # # Create pivot table for heatmap
     if len(data["lambda"].unique()) > 1 and len(data["N"].unique()) > 1:
-        pivot_data = data.pivot_table(
+        data.pivot_table(
             index="lambda", columns="N", values="fallen", aggfunc="mean"
         )
     #     sns.heatmap(

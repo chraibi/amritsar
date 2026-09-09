@@ -78,6 +78,14 @@ The simulation is controlled through a `config.json` file.
 | `survival_noise` | float | Relative noise applied to the survival probability | 0.05 |
 
 
+## Development
+
+```bash
+pip install pytest ruff
+ruff check .
+PYTHONPATH=. pytest
+```
+
 ## Usage
 
 ### Running Simulations
