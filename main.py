@@ -7,8 +7,6 @@ The simulation is run multiple times to get an average evacuation time and numbe
 The time series of fallen agents is also plotted.
 """
 
-import os
-import pickle
 import random
 import time
 import json
