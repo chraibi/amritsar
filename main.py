@@ -8,6 +8,7 @@ The time series of fallen agents is also plotted.
 """
 
 import argparse
+from dataclasses import dataclass
 import random
 import time
 import json
@@ -34,6 +35,21 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_FILE = "config.json"
 DEFAULT_OUTPUT_DIR = "fig_results"
+
+
+@dataclass
+class SimulationResult:
+    """Outcome of a single simulation run."""
+
+    elapsed_time_min: float  # simulated time at the end of the run, in minutes
+    agents_remaining: int  # agents still inside (fallen or not exited) at the end
+    time_series: list  # update times in seconds
+    fallen_per_interval: list  # newly fallen agents at each update time
+    fallen_positions: list  # (x, y) of every fallen agent
+
+    @property
+    def fallen_total(self):
+        return sum(self.fallen_per_interval)
 
 
 def generate_seeds(base_seed, num_reps):
@@ -164,12 +180,12 @@ def run_evacuation_simulation(params):
         f"Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {sum(fallen_over_time)}"
     )
 
-    return (
-        simulation.elapsed_time() / 60,
-        simulation.agent_count(),
-        time_series,
-        fallen_over_time,
-        overall_fallen_positions,
+    return SimulationResult(
+        elapsed_time_min=simulation.elapsed_time() / 60,
+        agents_remaining=simulation.agent_count(),
+        time_series=time_series,
+        fallen_per_interval=fallen_over_time,
+        fallen_positions=overall_fallen_positions,
     )
 
 
@@ -449,11 +465,11 @@ if __name__ == "__main__":
             fallen_time_series[key] = ([], [])
             cl[key] = []
 
-        evac_times[key].append(result[0])
-        dead[key].append(result[1])
-        fallen_time_series[key][0].append(result[2])
-        fallen_time_series[key][1].append(result[3])
-        cl[key].append(result[4])
+        evac_times[key].append(result.elapsed_time_min)
+        dead[key].append(result.agents_remaining)
+        fallen_time_series[key][0].append(result.time_series)
+        fallen_time_series[key][1].append(result.fallen_per_interval)
+        cl[key].append(result.fallen_positions)
 
     results_file, summary_file = save_simulation_results(
         evac_times=evac_times,
