@@ -312,6 +312,7 @@ def init_params(
     exit_areas,
     gamma=0.8,
     seed=None,
+    rep_idx=0,
 ):
     """Define parameters and return parm object."""
     # ================================= MODEL PARAMETERS =========
@@ -346,6 +347,7 @@ def init_params(
         "lambda_decay": lambda_decay,
         "trajectory_file": "",
         "num_reps": num_reps,
+        "rep_idx": rep_idx,
         "shielding_gamma": gamma,
         "shielding_alpha": alpha,  # 1.0 for physical shielding, 0.0 for targeted fire
         "sigma": sigma,  # for space_factor
@@ -454,12 +456,8 @@ if __name__ == "__main__":
             gamma=gamma,
             sigma=sigma,
             alpha=alpha_val,
-            seed=global_seed,  # Important: still base_seed here
-        ).copy()
-        params["seed"] = seed_val
-        base_name = params.get("trajectory_file", "trajectory")
-        params["trajectory_file"] = (
-            f"{base_name}_agents{num_agents_val}_decay{lambda_decay_val}_rep{rep_idx}.sqlite"
+            seed=seed_val,
+            rep_idx=rep_idx,
         )
         return (
             num_agents_val,

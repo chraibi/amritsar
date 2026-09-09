@@ -286,7 +286,8 @@ def get_trajectory_name(params):
         f"tscale{params['time_scale']}_"
         f"detexit{params['determinism_strength_exits']:.1f}_"
         f"probexit{params['exit_probability']:.1f}_"
-        f"seed{params['seed']}"
+        f"seed{params['seed']}_"
+        f"rep{params['rep_idx']}.sqlite"
     )
     return name
 
