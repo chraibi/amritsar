@@ -5,7 +5,6 @@ from typing import List, Tuple
 
 import jupedsim as jps
 import numpy as np
-from numpy.random import normal
 from shapely import LinearRing, Point, Polygon, intersection
 
 import read_geometry as rr
@@ -88,7 +87,7 @@ def setup_simulation(params, rng):
         # spawning_area=params["walkable_area"],
         spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
     )
-    v_distribution = normal(params["v0_max"], 0.05, num_agents)
+    v_distribution = rng.normal(params["v0_max"], 0.05, num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,

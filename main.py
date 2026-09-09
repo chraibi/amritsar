@@ -92,7 +92,7 @@ def run_evacuation_simulation(params):
     # Assign individual decay rates to agents
     lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
-        agent.id: np.random.uniform(*lambda_range) for agent in simulation.agents()
+        agent.id: rng.uniform(*lambda_range) for agent in simulation.agents()
     }
 
     start_time = time.time()
@@ -228,7 +228,7 @@ def update_agent_statuses(
         else:
             p_collapse = 1.0 - survival_prob
         # Check if agent should fall
-        rn_number = np.random.rand()
+        rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
             number_fallen_agents += 1
             num_collapse_attempts += 1
