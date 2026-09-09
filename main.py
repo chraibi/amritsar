@@ -7,6 +7,7 @@ The simulation is run multiple times to get an average evacuation time and numbe
 The time series of fallen agents is also plotted.
 """
 
+import argparse
 import random
 import time
 import json
@@ -17,6 +18,7 @@ import logging
 
 from utils import (
     calculate_probability,
+    configure_logging,
     convert_seconds_to_hms,
     get_nearest_exit_id,
     get_trajectory_name,
@@ -28,9 +30,7 @@ from utils import (
 )
 import hashlib
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_FILE = "config.json"
 DEFAULT_OUTPUT_DIR = "fig_results"
@@ -96,7 +96,7 @@ def run_evacuation_simulation(params):
     }
 
     start_time = time.time()
-    # print(f"Enter run_evacuation_simulation with {params['seed']}")
+    logger.debug(f"Enter run_evacuation_simulation with seed {seed}")
     while (
         simulation.agent_count() > 0
         and simulation.elapsed_time() <= MAX_SIMULATION_TIME
@@ -160,7 +160,7 @@ def run_evacuation_simulation(params):
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
 
-    logging.info(
+    logger.info(
         f"Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {sum(fallen_over_time)}"
     )
 
@@ -321,8 +321,8 @@ def init_params(
     determinism_strength_exits = config["determinism_strength_exits"]
     exit_probability = config["exit_probability"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
-    logging.info(
-        f"\t\ttime_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
+    logger.debug(
+        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
     )
     # =============================================================
     if not seed:
@@ -365,12 +365,29 @@ def load_sweep_config(config_file):
         return json.load(f)
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--config", default=DEFAULT_CONFIG_FILE, help="Sweep configuration file"
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (DEBUG prints the per-interval simulation status)",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
+    configure_logging(args.log_level)
     walkable_area, exit_areas, spawning_area = setup_geometry()
 
     # ========================= SWEEP PARAMETERS =========================
     # Load sweep parameters from config file
-    config = load_sweep_config(DEFAULT_CONFIG_FILE)
+    config = load_sweep_config(args.config)
 
     num_agents_list = config["num_agents_list"]
     lambda_decay_list = config["lambda_decay_list"]
@@ -409,8 +426,9 @@ if __name__ == "__main__":
         num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val, config
     ):
         """Run a single simulation with given parameters in Parallel."""
-        print(
-            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma = {sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
+        configure_logging(args.log_level)  # worker processes start unconfigured
+        logger.info(
+            f"Running rep {rep_idx} (seed {seed_val}): num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma={sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
         )
         params = init_params(
             num_agents=num_agents_val,

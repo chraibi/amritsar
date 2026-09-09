@@ -16,6 +16,17 @@ import os
 import pickle
 import logging
 
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(level="INFO"):
+    """Configure root logging; safe to call again in joblib worker processes."""
+    logging.basicConfig(
+        level=getattr(logging, str(level).upper(), logging.INFO),
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        force=True,
+    )
+
 
 def setup_geometry():
     """Parse geometry file and return walkable_area, exit_areas, spawning_area."""
@@ -272,8 +283,8 @@ def log_simulation_status(
     exited = total_agents - current_count
     total_fallen = sum(fallen_status.values())
 
-    print(
-        f"[INFO] Time {elapsed_time:.2f}s: "
+    logger.debug(
+        f"Time {elapsed_time:.2f}s: "
         f"Num fallen {num_fallen}. Active: {active_agents} "
         f"Exited: {exited}, Fallen total: {total_fallen}. "
         f"Still in simulation: {current_count}. "
@@ -351,8 +362,8 @@ def save_simulation_results(
     summary_file = f"{output_subdir}/simulation_summary_{timestamp}.json"
     save_human_readable_summary(data_to_save, summary_file)
 
-    logging.info(f"Simulation results saved to: {results_file}")
-    logging.info(f"Summary saved to: {summary_file}")
+    logger.info(f"Simulation results saved to: {results_file}")
+    logger.info(f"Summary saved to: {summary_file}")
 
     return results_file, summary_file
 
@@ -451,11 +462,11 @@ def load_simulation_results(filepath):
     with open(filepath, "rb") as f:
         data = pickle.load(f)
 
-    logging.info(f"Loaded simulation data from: {filepath}")
-    logging.info(f"Simulation timestamp: {data['metadata']['timestamp']}")
-    logging.info(
+    logger.info(f"Loaded simulation data from: {filepath}")
+    logger.info(f"Simulation timestamp: {data['metadata']['timestamp']}")
+    logger.info(
         f"Total parameter combinations: {data['metadata']['total_parameter_combinations']}"
     )
-    logging.info(f"Configuration used: {len(data['config'])} parameters")
+    logger.info(f"Configuration used: {len(data['config'])} parameters")
 
     return data
