@@ -184,7 +184,7 @@ def calculate_probability(
         risk += 1 / (1 + (dx**2 + dy**2) / sigma**2)
 
     # Normalize risk by maximum possible value (i.e. at min_x, shooter_y=center)
-    max_risk = 29.558  # compute_max_risk(min_x, min_y, max_y, sigma, n_shooters)
+    max_risk = compute_max_risk(min_x, min_y, max_y, sigma, n_shooters)
     risk_norm = risk / max_risk
 
     # Convert to survival probability in [p_min, p_max]
