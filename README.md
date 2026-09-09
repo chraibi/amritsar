@@ -105,25 +105,15 @@ The repository includes several plotting scripts for analyzing simulation result
 
 ### Plot Scripts
 
-| Script | Description | Fixed Parameters |
-|--------|-------------|------------------|
-| `plot_cumulative_fallen_agents_time_lambda.py` | Cumulative fallen agents over time for different λ values | α = fixed |
-| `plot_cumulative_fallen_agents_time_alpha.py` | Cumulative fallen agents over time for different α values | λ = fixed |
-| `heatmap.py` | Multiple PNG survival heatmaps | Various parameters |
-| `plot_heatmap_once.py` | Single PDF survival heatmap | λ = fixed |
-| `plot_heatmap_rspace.py` | Heatmaps for spatial analysis at 4 time points | - |
-
-### Running Analysis
+See [FIGURES.md](FIGURES.md) for the mapping between article figures, scripts and input data.
+Scripts that read a sweep pickle share their loading code in `plot_utils.py`:
 
 ```bash
-# Generate time series plots
-python plot_cumulative_fallen_agents_time_lambda.py
-python plot_cumulative_fallen_agents_time_alpha.py
-
-# Generate heatmaps
-python heatmap.py
+python plot_cumulative_fallen_agents_time_alpha.py fig_results/<run>/sweep_simulation_data_<run>.pkl
+python plot_causality_heatmap.py fig_results/<run>/sweep_simulation_data_<run>.pkl
 python plot_heatmap_once.py
 python plot_heatmap_rspace.py
+python plot_exit_probabilities.py
 ```
 
 ## Output Structure

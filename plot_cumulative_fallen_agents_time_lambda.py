@@ -1,37 +1,17 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
-import sys
 from pathlib import Path
-import read_geometry as rr
-from shapely import Polygon, LinearRing
 
-if len(sys.argv) == 1:
-    sys.exit(f"Usage {sys.argv[0]} pickle_file")
+from plot_utils import load_results, walkable_area
 
-save_path = sys.argv[1]
-output_dir = "fig_results"
-path = Path(save_path)
-stem = path.stem
-
-# Load saved data
-with open(save_path, "rb") as f:
-    loaded_data = pickle.load(f)
+loaded_data, stem, output_dir = load_results()
 
 evac_times = loaded_data["evac_times"]
 dead = loaded_data["dead"]
 fallen_time_series = loaded_data["fallen_time_series"]
-# cl = loaded_data["cl"]
 print("Simulation data successfully loaded.")
 
-# Parse geometry
-wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
-walkable_area0 = wkt[0]
-holes = walkable_area0.interiors[1:]
-holes.append(LinearRing([(84, 90), (84, 87), (90, 87), (90, 90), (84, 90)]))
-holes.append(LinearRing([(170, 80), (171, 80), (171, 81), (170, 81), (170, 80)]))
-holes.append(LinearRing([(100, 40), (101, 40), (101, 41), (100, 41), (100, 40)]))
-walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
+walkable_area = walkable_area()
 
 # Extract scenarios
 scenarios = list(fallen_time_series.keys())
