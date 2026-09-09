@@ -67,6 +67,15 @@ The simulation is controlled through a `config.json` file.
 | `alpha_list` | list | Shielding effectiveness values | [0.0, 0.5, 1.0] |
 | `gamma` | float | Shielding decay parameter | 0.8 |
 | `sigma` | float | Space factor parameter in meters | 20 |
+| **Model Constants** | | | |
+| `dt` | float | Simulation time step (s) | 0.01 |
+| `agent_radius` | float | Agent body radius (m) | 0.15 |
+| `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
+| `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |
+| `distance_to_polygon` | float | Minimum initial distance to walls (m) | 0.5 |
+| `n_shooters` | int | Shooter positions along the firing line | 50 |
+| `p_min`, `p_max` | float | Bounds of the per-update survival probability | 0.05, 0.95 |
+| `survival_noise` | float | Relative noise applied to the survival probability | 0.05 |
 
 
 ## Usage

@@ -140,6 +140,7 @@ def run_evacuation_simulation(params):
                     radius_around=params["radius_around"],
                     n_max=params["n_max"],
                     walkable_area=wa,
+                    model_constants=params["model_constants"],
                 )
             )
 
@@ -205,6 +206,7 @@ def update_agent_statuses(
     radius_around,
     n_max,
     walkable_area,
+    model_constants,
 ):
     """Update agent stamina and handle fallen agents."""
     number_fallen_agents = 0
@@ -230,6 +232,10 @@ def update_agent_statuses(
             alpha=alpha,
             sigma=sigma,
             rng=rng,
+            p_min=model_constants["p_min"],
+            p_max=model_constants["p_max"],
+            n_shooters=model_constants["n_shooters"],
+            survival_noise=model_constants["survival_noise"],
         )
 
         # small prob -> p_collapse big
@@ -348,6 +354,18 @@ def init_params(
         ],  # Radius around agent to consider neighbors
         "n_max": config["n_max"],  # Maximum number of neighbors for full shielding
         "LAMBDA_VARIATION": config["LAMBDA_VARIATION"],  # Variation in lambda values
+        # ============================= MODEL CONSTANTS =============
+        "dt": config.get("dt", 0.01),  # Simulation time step (s)
+        "agent_radius": config.get("agent_radius", 0.15),  # m
+        "v0_std": config.get("v0_std", 0.05),  # Std of desired speed distribution (m/s)
+        "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
+        "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
+        "model_constants": {
+            "n_shooters": config.get("n_shooters", 50),  # Shooter positions along the firing line
+            "p_min": config.get("p_min", 0.05),  # Survival probability bounds per update
+            "p_max": config.get("p_max", 0.95),
+            "survival_noise": config.get("survival_noise", 0.05),  # Relative noise on survival probability
+        },
     }
     params["trajectory_file"] = get_trajectory_name(params)
     return params

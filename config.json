@@ -1,8 +1,17 @@
 {
     "num_reps": 5,
-    "num_agents_list": [5000, 10000, 15000],
-    "lambda_decay_list": [0.2],
-    "alpha_list": [0.3, 0.7],
+    "num_agents_list": [
+        5000,
+        10000,
+        15000
+    ],
+    "lambda_decay_list": [
+        0.2
+    ],
+    "alpha_list": [
+        0.3,
+        0.7
+    ],
     "gamma": 0.8,
     "sigma": 30,
     "global_seed": 1234,
@@ -16,5 +25,15 @@
     "wp_radius": 10,
     "radius_around": 1.5,
     "n_max": 12,
-    "LAMBDA_VARIATION": 0.1
+    "LAMBDA_VARIATION": 0.1,
+    "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
+    "dt": 0.01,
+    "agent_radius": 0.15,
+    "v0_std": 0.05,
+    "distance_to_agents": 0.3,
+    "distance_to_polygon": 0.5,
+    "n_shooters": 50,
+    "p_min": 0.05,
+    "p_max": 0.95,
+    "survival_noise": 0.05
 }

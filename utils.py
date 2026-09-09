@@ -66,7 +66,7 @@ def setup_simulation(params, rng):
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=params["walkable_area"],
-        dt=0.01,
+        dt=params["dt"],
         trajectory_writer=jps.SqliteTrajectoryWriter(
             output_file=pathlib.Path(trajectory_file)
         ),
@@ -87,8 +87,10 @@ def setup_simulation(params, rng):
         num_agents=num_agents,
         seed=params["seed"],
         spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
+        distance_to_agents=params["distance_to_agents"],
+        distance_to_polygon=params["distance_to_polygon"],
     )
-    v_distribution = rng.normal(params["v0_max"], 0.05, num_agents)
+    v_distribution = rng.normal(params["v0_max"], params["v0_std"], num_agents)
     for pos, v0 in zip(pos_in_spawning_area, v_distribution):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,
@@ -104,7 +106,7 @@ def setup_simulation(params, rng):
                 stage_id=exit_id,
                 position=pos,
                 v0=v0,
-                radius=0.15,
+                radius=params["agent_radius"],
             )
         )
 
@@ -119,13 +121,15 @@ def convert_seconds_to_hms(seconds):
     return hours, minutes, remaining_seconds
 
 
-def distribute_agents(num_agents, seed, spawning_area):
+def distribute_agents(
+    num_agents, seed, spawning_area, distance_to_agents=0.3, distance_to_polygon=0.5
+):
     """Distribute agents in spawning area."""
     pos_in_spawning_area = jps.distributions.distribute_by_number(
         polygon=spawning_area,
         number_of_agents=num_agents,
-        distance_to_agents=0.3,
-        distance_to_polygon=0.5,
+        distance_to_agents=distance_to_agents,
+        distance_to_polygon=distance_to_polygon,
         seed=seed,
     )
     return pos_in_spawning_area
@@ -167,6 +171,7 @@ def calculate_probability(
     p_min=0.05,
     p_max=0.95,
     n_shooters=50,
+    survival_noise=0.05,
 ):
     """Calculate the probability of survival for an agent using spatial exposure model."""
 
@@ -192,7 +197,7 @@ def calculate_probability(
     base_survival_prob = p_min + (1 - risk_norm) * (p_max - p_min)
 
     # Apply small noise
-    noise = rng.uniform(0.95, 1.05)
+    noise = rng.uniform(1 - survival_noise, 1 + survival_noise)
     noisy_survival_prob = np.clip(base_survival_prob * noise, p_min, p_max)
 
     # Time factor
