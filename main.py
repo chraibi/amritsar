@@ -79,7 +79,7 @@ def run_evacuation_simulation(params):
     seed = params["seed"]
     rng = np.random.default_rng(seed)
     # Create simulation
-    simulation, exit_ids, journey_ids = setup_simulation(params, rng)
+    simulation, exit_ids, journey_ids, trajectory_writer = setup_simulation(params, rng)
     # Unpack parameters
     update_time = params["update_time"]
     lambda_decay = params["lambda_decay"]
@@ -172,6 +172,8 @@ def run_evacuation_simulation(params):
 
             if number_active_agents == 0:
                 break
+
+    trajectory_writer.close()  # flush buffered frames and release the sqlite file
 
     # Log execution time
     execution_time = time.time() - start_time

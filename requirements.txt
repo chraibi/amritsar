@@ -1,5 +1,10 @@
-jupedsim 
-joblib 
-plotly 
-pedpy
+jupedsim==1.4.2
+joblib
 geopandas
+shapely
+numpy
+pedpy
+matplotlib
+pandas
+seaborn
+plotly

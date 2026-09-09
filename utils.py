@@ -58,17 +58,21 @@ def setup_geometry():
 
 
 def setup_simulation(params, rng):
-    """Create simulation, init agents with journeys and return simulation."""
+    """Create simulation, init agents with journeys; return simulation, exits, journeys and writer.
+
+    The caller must close the trajectory writer at the end of the run.
+    """
     num_agents = params["num_agents"]
     trajectory_file = params["trajectory_file"]
     exit_areas = params["exit_areas"]
+    trajectory_writer = jps.SqliteTrajectoryWriter(
+        output_file=pathlib.Path(trajectory_file)
+    )
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=params["walkable_area"],
         dt=params["dt"],
-        trajectory_writer=jps.SqliteTrajectoryWriter(
-            output_file=pathlib.Path(trajectory_file)
-        ),
+        trajectory_writer=trajectory_writer,
     )
 
     exit_ids = []
@@ -109,7 +113,7 @@ def setup_simulation(params, rng):
             )
         )
 
-    return simulation, exit_ids, journey_ids
+    return simulation, exit_ids, journey_ids, trajectory_writer
 
 
 def convert_seconds_to_hms(seconds):
