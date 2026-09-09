@@ -123,6 +123,7 @@ def run_evacuation_simulation(params):
                     alpha=alpha,
                     radius_around=params["radius_around"],
                     n_max=params["n_max"],
+                    walkable_area=wa,
                 )
             )
 
@@ -187,6 +188,7 @@ def update_agent_statuses(
     alpha,
     radius_around,
     n_max,
+    walkable_area,
 ):
     """Update agent stamina and handle fallen agents."""
     number_fallen_agents = 0
@@ -304,6 +306,9 @@ def init_params(
     alpha,
     sigma,
     config,
+    walkable_area,
+    spawning_area,
+    exit_areas,
     gamma=0.8,
     seed=None,
 ):
@@ -412,6 +417,9 @@ if __name__ == "__main__":
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
             config=config,
+            walkable_area=walkable_area,
+            spawning_area=spawning_area,
+            exit_areas=exit_areas,
             gamma=gamma,
             sigma=sigma,
             alpha=alpha_val,
