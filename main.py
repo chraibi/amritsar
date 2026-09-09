@@ -194,9 +194,6 @@ def update_agent_statuses(
     number_fallen_agents = 0
     number_active_agents = 0
     fallen_positions = []
-    num_collapse_attempts = 0
-    radius_around = radius_around  # Covers about 7 m²
-    n_max = n_max  # Full shielding at ~1.7 persons/m²
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -204,9 +201,6 @@ def update_agent_statuses(
             simulation.agents_in_range(pos=agent.position, distance=radius_around)
         )
         shielding = min(1.0, len(neighbors) / n_max)
-        # print(
-        #     f"{simulation.elapsed_time()}: Agent: {agent.id} at {agent.position} has {len(neighbors)} neighbors. Density: {len(neighbors) / np.pi / radius_around**2:.2f}, shielding: {shielding:.2f}"
-        # )
 
         # Calculate agent stamina
         survival_prob = calculate_probability(
@@ -233,27 +227,12 @@ def update_agent_statuses(
         rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
             number_fallen_agents += 1
-            num_collapse_attempts += 1
             fallen_status_agents[agent_id] = True
             agent.model.v0 = 0
             v_distribution[agent_id] = 0
             fallen_positions.append(tuple(agent.position))
-
-            # Count active agents
-            # else:
-            #    number_active_agents += 1
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
-        # print(
-        #     f"{agent_id}: "
-        #     f"prob = {prob:.2f}, "
-        #     f"initial_v0 = {initial_v0:.2f}, "
-        #     f"base_speed = {float(base_speed):.2f}, "
-        #     f"p_collapse = {float(p_collapse):.2f}, "
-        #     f"rn_number = {float(rn_number):.2f}, "
-        #     f"fallen_status = {fallen_status_agents[agent_id]}, "
-        #     f"position = ({agent.position[0]:.2f}, {agent.position[1]:.2f})"
-        # )
     return number_fallen_agents, number_active_agents, fallen_positions
 
 
