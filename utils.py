@@ -28,8 +28,12 @@ def configure_logging(level="INFO"):
     )
 
 
-def setup_geometry():
-    """Parse geometry file and return walkable_area, exit_areas, spawning_area."""
+def setup_geometry(extra_exits=()):
+    """Parse geometry file and return walkable_area, exit_areas, spawning_area.
+
+    extra_exits: optional list of (x, y) centres of additional openings, each
+    modelled as a 1.5 m x 1 m box like the five openings from the map.
+    """
     wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
 
     # %%
@@ -54,6 +58,10 @@ def setup_geometry():
             ]
         ),
     ]
+    for x, y in extra_exits:
+        exit_areas.append(
+            Polygon([(x - 0.75, y), (x + 0.75, y), (x + 0.75, y - 1), (x - 0.75, y - 1)])
+        )
     spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
     return (walkable_area, exit_areas, spawning_area)
 
@@ -357,7 +365,13 @@ def get_trajectory_name(params):
 
 
 def save_simulation_results(
-    evac_times, dead, fallen_time_series, cl, config, output_dir="fig_results"
+    evac_times,
+    dead,
+    fallen_time_series,
+    cl,
+    config,
+    output_dir="fig_results",
+    exited_per_exit=None,
 ):
     """
     Save simulation results along with configuration and metadata.
@@ -395,12 +409,14 @@ def save_simulation_results(
         "dead": dead,
         "fallen_time_series": fallen_time_series,
         "results": cl,
+        "exited_per_exit": exited_per_exit,
         # Data structure documentation
         "data_structure_info": {
             "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of evacuation times",
             "dead": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of dead agent counts",
             "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing (time_series, fallen_counts) tuples",
             "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of fallen agent positions",
+            "exited_per_exit": "Dictionary with the same keys containing, per run, the number of agents that left through each opening (order of exit_areas)",
         },
     }
 

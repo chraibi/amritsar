@@ -63,6 +63,8 @@ The simulation is controlled through a `config.json` file.
 | `kappa_list` | list | Persistence: probability per update of keeping the target opening | [0.5, 0.9] |
 | `exit_flow_rate` | float | J, persons per metre per second an opening passes | 1.3 |
 | `exit_width` | float | w, width of an opening (m); capacity per update = J·w·update_time | 1.5 |
+| `exit_widths` | list | Optional per-opening widths (m), overrides `exit_width`; one entry per opening | |
+| `extra_exits` | list | Optional additional openings as [x, y] centres on the wall (1.5 m x 1 m boxes) | [] |
 | `wp_radius` | float | Radius of the exit zone around an opening (m) | 10 |
 | **Model Parameters** | | | |
 | `lambda_decay_list` | list | Stamina decay rates to test | [0.1, 0.5, 1.0] |

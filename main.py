@@ -48,6 +48,7 @@ class SimulationResult:
     time_series: list  # update times in seconds
     fallen_per_interval: list  # newly fallen agents at each update time
     fallen_positions: list  # (x, y) of every fallen agent
+    exited_per_exit: list  # agents that left through each opening (order of exit_areas)
 
     @property
     def fallen_total(self):
@@ -90,8 +91,9 @@ def run_evacuation_simulation(params):
     time_scale = params["time_scale"]
     exit_choice_exponent = params["exit_choice_exponent"]
     kappa = params["kappa"]
-    exit_capacity = params["exit_capacity"]
+    exit_capacity = params["exit_capacity"]  # per opening
     exit_credit = [0.0] * len(params["exit_areas"])
+    exited_per_exit = [0] * len(params["exit_areas"])
     exit_areas = params["exit_areas"]
     num_agents = params["num_agents"]
     exit_radius = params["wp_radius"]
@@ -153,6 +155,7 @@ def run_evacuation_simulation(params):
                 exit_ids,
                 journey_ids,
                 exit_credit,
+                exited_per_exit,
                 beta=exit_choice_exponent,
                 kappa=kappa,
                 exit_capacity=exit_capacity,
@@ -193,6 +196,7 @@ def run_evacuation_simulation(params):
         time_series=time_series,
         fallen_per_interval=fallen_over_time,
         fallen_positions=overall_fallen_positions,
+        exited_per_exit=exited_per_exit,
     )
 
 
@@ -282,6 +286,7 @@ def remove_or_update_journey(
     exit_ids,
     journey_ids,
     exit_credit,
+    exited_per_exit,
     beta,
     kappa,
     exit_capacity,
@@ -290,8 +295,9 @@ def remove_or_update_journey(
 ):
     """Let agents through the openings up to their capacity, then re-decide targets.
 
-    Each opening passes at most `exit_capacity` agents per update (closest first,
-    unused capacity carried in `exit_credit`). Every remaining active agent keeps
+    Opening k passes at most `exit_capacity[k]` agents per update (closest first,
+    unused capacity carried in `exit_credit`); `exited_per_exit[k]` counts them.
+    Every remaining active agent keeps
     its target opening with probability kappa, otherwise draws a new one with the
     distance-biased rule of get_nearest_exit_id (exponent beta).
     """
@@ -307,8 +313,9 @@ def remove_or_update_journey(
             if distance < exit_radius:
                 candidates.append((distance, agent.id))
         chosen, exit_credit[k] = select_exiting_agents(
-            candidates, exit_credit[k], exit_capacity
+            candidates, exit_credit[k], exit_capacity[k]
         )
+        exited_per_exit[k] += len(chosen)
         for agent_id in chosen:
             simulation.mark_agent_for_removal(agent_id)
             removed.add(agent_id)
@@ -352,9 +359,12 @@ def init_params(
     # Add some variability to avoid synchronized agent falls
     exit_choice_exponent = config["exit_choice_exponent"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
-    exit_capacity = config["exit_flow_rate"] * config["exit_width"] * update_time
+    widths = config.get("exit_widths") or [config["exit_width"]] * len(exit_areas)
+    if len(widths) != len(exit_areas):
+        raise ValueError(f"exit_widths has {len(widths)} entries for {len(exit_areas)} openings")
+    exit_capacity = [config["exit_flow_rate"] * w * update_time for w in widths]
     logger.debug(
-        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity:.1f}, exit_choice_exponent: {exit_choice_exponent}"
+        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity}, exit_choice_exponent: {exit_choice_exponent}"
     )
     # =============================================================
     if not seed:
@@ -374,7 +384,7 @@ def init_params(
         "update_time": update_time,  # How often to update agent status (10 seconds)
         "exit_choice_exponent": exit_choice_exponent,  # beta: distance bias of the exit choice
         "kappa": kappa,  # Probability of keeping the current target opening per update
-        "exit_capacity": exit_capacity,  # Agents that can pass one opening per update
+        "exit_capacity": exit_capacity,  # Agents that can pass each opening per update
         "lambda_decay": lambda_decay,
         "trajectory_file": "",
         "num_reps": num_reps,
@@ -439,11 +449,10 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     configure_logging(args.log_level)
-    walkable_area, exit_areas, spawning_area = setup_geometry()
-
     # ========================= SWEEP PARAMETERS =========================
     # Load sweep parameters from config file
     config = load_sweep_config(args.config)
+    walkable_area, exit_areas, spawning_area = setup_geometry(config.get("extra_exits", []))
 
     num_agents_list = config["num_agents_list"]
     lambda_decay_list = config["lambda_decay_list"]
@@ -459,6 +468,7 @@ if __name__ == "__main__":
     dead = {}
     fallen_time_series = {}
     cl = {}
+    exited_per_exit = {}
 
     all_tasks = []
 
@@ -526,12 +536,14 @@ if __name__ == "__main__":
             dead[key] = []
             fallen_time_series[key] = ([], [])
             cl[key] = []
+            exited_per_exit[key] = []
 
         evac_times[key].append(result.elapsed_time_min)
         dead[key].append(result.agents_remaining)
         fallen_time_series[key][0].append(result.time_series)
         fallen_time_series[key][1].append(result.fallen_per_interval)
         cl[key].append(result.fallen_positions)
+        exited_per_exit[key].append(result.exited_per_exit)
 
     results_file, summary_file = save_simulation_results(
         evac_times=evac_times,
@@ -540,4 +552,5 @@ if __name__ == "__main__":
         cl=cl,
         config=config,
         output_dir=DEFAULT_OUTPUT_DIR,
+        exited_per_exit=exited_per_exit,
     )
