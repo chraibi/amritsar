@@ -19,6 +19,8 @@ from utils import calculate_probability, setup_geometry, shooter_positions
 class NoNoise:
     """Replaces the rng so the field is drawn without the multiplicative noise."""
 
+    # calculate_probability returns p(x, t) before the crowding term
+
     def uniform(self, low, high):
         return 1.0
 
@@ -57,9 +59,6 @@ for t in times:
                 lambda_decay=lambda_decay,
                 time_scale=time_scale,
                 firing_line=firing_line,
-                shielding=0,
-                gamma=0,
-                alpha=0,
                 rng=NoNoise(),
                 sigma=sigma,
                 p_min=p_min,

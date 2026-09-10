@@ -6,8 +6,8 @@ from shapely import Point, Polygon
 
 from main import generate_seeds
 from utils import (
-    adjusted_probability,
     calculate_probability,
+    collapse_probability,
     compute_max_risk,
     exposure_risk,
     get_nearest_exit_id,
@@ -24,17 +24,35 @@ class ConstantRng:
         return 1.0
 
 
-def test_adjusted_probability_shielding_and_targeting():
-    base = 0.5
-    assert adjusted_probability(base, shielding=0, gamma=0.8, alpha=1.0) == base
-    assert adjusted_probability(base, shielding=1, gamma=0.8, alpha=1.0) == pytest.approx(0.9)
-    # alpha=0: dense clusters are more exposed, isolated agents are safer
-    assert adjusted_probability(base, shielding=1, gamma=0.8, alpha=0.0) == base
-    assert adjusted_probability(base, shielding=0, gamma=0.8, alpha=0.0) == pytest.approx(0.9)
+def test_collapse_probability_risk_model_is_symmetric():
+    p, g = 0.5, 0.8
+    # alpha=1: dense is safer, isolated is more exposed
+    assert collapse_probability(p, 1, g, 1.0) == pytest.approx(0.5 * (1 - g))
+    assert collapse_probability(p, 0, g, 1.0) == pytest.approx(0.5 * (1 + g))
+    # alpha=0: roles swap
+    assert collapse_probability(p, 1, g, 0.0) == pytest.approx(0.5 * (1 + g))
+    assert collapse_probability(p, 0, g, 0.0) == pytest.approx(0.5 * (1 - g))
+    # alpha=0.5 or s=0.5: crowding has no effect
+    assert collapse_probability(p, 1, g, 0.5) == pytest.approx(0.5)
+    assert collapse_probability(p, 0.5, g, 0.0) == pytest.approx(0.5)
 
 
-def test_adjusted_probability_is_clamped():
-    assert adjusted_probability(0.9, shielding=1, gamma=0.8, alpha=1.0) == 1.0
+def test_collapse_probability_risk_model_is_clamped():
+    assert collapse_probability(0.1, 0, 0.8, 1.0) == 1.0
+    assert 0.0 <= collapse_probability(0.99, 1, 0.8, 1.0) <= 1.0
+
+
+def test_collapse_probability_survival_model_matches_submitted_form():
+    p, g = 0.5, 0.8
+    assert collapse_probability(p, 0, g, 1.0, "survival") == pytest.approx(0.5)
+    assert collapse_probability(p, 1, g, 1.0, "survival") == pytest.approx(0.1)
+    assert collapse_probability(p, 1, g, 0.0, "survival") == pytest.approx(0.5)
+    assert collapse_probability(0.9, 1, g, 1.0, "survival") == 0.0  # capped survival
+
+
+def test_collapse_probability_rejects_unknown_model():
+    with pytest.raises(ValueError):
+        collapse_probability(0.5, 0.5, 0.8, 0.5, "foo")
 
 
 def test_shooter_positions_span_the_segment():
@@ -56,15 +74,13 @@ def test_survival_reaches_p_min_on_the_firing_line():
     shooters = shooter_positions(LINE, 50)
     x, y = shooters[len(shooters) // 2]
     p = calculate_probability(
-        Point(x, y), 0, 0.3, 600, LINE,
-        shielding=0, gamma=0, alpha=0, rng=ConstantRng(), sigma=30,
+        Point(x, y), 0, 0.3, 600, LINE, rng=ConstantRng(), sigma=30,
     )
     assert p == pytest.approx(0.05)
 
 
 def test_survival_increases_with_distance_and_decays_with_time():
-    kw = dict(lambda_decay=0.3, time_scale=600, firing_line=LINE,
-              shielding=0, gamma=0, alpha=0, rng=ConstantRng(), sigma=30)
+    kw = dict(lambda_decay=0.3, time_scale=600, firing_line=LINE, rng=ConstantRng(), sigma=30)
     near = calculate_probability(Point(40, 50), 0, **kw)
     far = calculate_probability(Point(150, 50), 0, **kw)
     later = calculate_probability(Point(150, 50), 300, **kw)

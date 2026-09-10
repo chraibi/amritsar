@@ -139,17 +139,29 @@ def distribute_agents(
     return pos_in_spawning_area
 
 
-def adjusted_probability(base_prob, shielding, gamma, alpha):
-    """Shielding enhances the survival chances.
+def collapse_probability(survival, shielding, gamma, alpha, crowding_model="risk"):
+    """Collapse probability from the exposure survival p(x,t) and the local crowding.
 
-    alpha = 1.0 → physical shielding (more neighbors = safer)
-    alpha = 0.0 → targeted fire (more neighbors = more dangerous)
+    shielding s in [0, 1] is the local density level; alpha in [0, 1] selects the
+    regime: alpha = 1 crowds protect (dense = safer), alpha = 0 crowds are targeted
+    (dense = more dangerous), alpha = 0.5 crowding has no effect.
+
+    crowding_model = "risk" (default):
+        P = (1 - p) * (1 - gamma * (2 alpha - 1) * (2 s - 1))
+        Symmetric: the risk 1 - p is scaled by a factor in [1 - gamma, 1 + gamma],
+        so both regimes can raise or lower the risk relative to an agent at s = 0.5.
+    crowding_model = "survival" (form used in the submitted manuscript):
+        P = 1 - p * (1 + gamma * [alpha s + (1 - alpha)(1 - s)])
+        The crowding term only ever raises survival; at alpha = 0 dense agents get
+        the plain exposure risk 1 - p and never more.
     """
-    crowd_exposure = 1.0 - shielding  # inverse of shielding
-    hybrid_factor = alpha * shielding + (1 - alpha) * crowd_exposure
-
-    adjusted_prob = base_prob * (1 + gamma * hybrid_factor)
-    return min(adjusted_prob, 1.0)  # clamp to 1.0
+    if crowding_model == "risk":
+        factor = 1.0 - gamma * (2.0 * alpha - 1.0) * (2.0 * shielding - 1.0)
+        return float(np.clip((1.0 - survival) * factor, 0.0, 1.0))
+    if crowding_model == "survival":
+        hybrid_factor = alpha * shielding + (1.0 - alpha) * (1.0 - shielding)
+        return 1.0 - min(survival * (1.0 + gamma * hybrid_factor), 1.0)
+    raise ValueError(f"Unknown crowding_model {crowding_model!r}; use 'risk' or 'survival'")
 
 
 def shooter_positions(firing_line, n_shooters):
@@ -185,9 +197,6 @@ def calculate_probability(
     lambda_decay,
     time_scale,
     firing_line,
-    shielding,
-    gamma,
-    alpha,
     rng,
     sigma,
     p_min=0.05,
@@ -195,9 +204,10 @@ def calculate_probability(
     n_shooters=50,
     survival_noise=0.05,
 ):
-    """Calculate the probability of survival for an agent using spatial exposure model.
+    """Exposure survival probability p(x, t) = r_space(x) * r_time(t), without crowding.
 
     firing_line: ((x0, y0), (x1, y1)) segment along which the shooters stand.
+    Combine with collapse_probability() to obtain the collapse probability.
     """
     shooters = shooter_positions(firing_line, n_shooters)
     risk = exposure_risk(point.x, point.y, shooters, sigma)
@@ -217,15 +227,7 @@ def calculate_probability(
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
 
-    # Combine with time
-    combined_prob = noisy_survival_prob * time_factor
-
-    # Apply shielding
-    probability_final = adjusted_probability(
-        combined_prob, shielding, gamma=gamma, alpha=alpha
-    )
-
-    return probability_final
+    return noisy_survival_prob * time_factor
 
 
 def get_nearest_exit_id(

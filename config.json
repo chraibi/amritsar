@@ -27,6 +27,8 @@
     "n_max": 12,
     "LAMBDA_VARIATION": 0.1,
     "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
+    "_comment_crowding_model": "'risk': P = (1-p)(1 - gamma (2 alpha - 1)(2 s - 1)); 'survival': P = 1 - p (1 + gamma [alpha s + (1-alpha)(1-s)]) as in the submitted manuscript",
+    "crowding_model": "risk",
     "_comment_firing_line": "Endpoints of the shooters' line in simulation coordinates (m), following the firing line on Wagner's map",
     "firing_line": [
         [

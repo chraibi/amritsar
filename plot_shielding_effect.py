@@ -12,12 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from utils import adjusted_probability
+from utils import collapse_probability
 
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
 with open(config_file) as f:
     config = json.load(f)
 gamma = config["gamma"]
+crowding_model = config.get("crowding_model", "risk")
 radius = config["radius_around"]
 n_max = config["n_max"]
 p_base = 0.5  # survival probability p(x, t) before the crowding term
@@ -29,7 +30,7 @@ alphas = [0.0, 0.3, 0.5, 0.7, 1.0]
 
 
 def p_collapse(s, alpha):
-    return 1.0 - adjusted_probability(p_base, s, gamma=gamma, alpha=alpha)
+    return collapse_probability(p_base, s, gamma=gamma, alpha=alpha, crowding_model=crowding_model)
 
 
 fs = 14
@@ -71,5 +72,6 @@ cbar.set_label(r"$P_\mathrm{collapse}$", fontsize=fs)
 cbar.ax.tick_params(labelsize=fs - 2)
 
 fig.tight_layout()
-fig.savefig("shielding_effect.pdf", bbox_inches="tight")
-print("shielding_effect.pdf")
+out = f"shielding_effect_{crowding_model}.pdf"
+fig.savefig(out, bbox_inches="tight")
+print(out)

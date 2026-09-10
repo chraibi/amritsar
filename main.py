@@ -19,6 +19,7 @@ import logging
 
 from utils import (
     calculate_probability,
+    collapse_probability,
     configure_logging,
     convert_seconds_to_hms,
     get_nearest_exit_id,
@@ -214,16 +215,13 @@ def update_agent_statuses(
         )
         shielding = min(1.0, len(neighbors) / n_max)
 
-        # Calculate agent stamina
+        # Exposure survival p(x, t), then the crowding term (Eq. collapse)
         survival_prob = calculate_probability(
             Point(agent.position),
             elapsed_time,
             agent_lambdas[agent_id],
             time_scale,
             model_constants["firing_line"],
-            shielding=shielding,
-            gamma=gamma,
-            alpha=alpha,
             sigma=sigma,
             rng=rng,
             p_min=model_constants["p_min"],
@@ -232,10 +230,16 @@ def update_agent_statuses(
             survival_noise=model_constants["survival_noise"],
         )
 
-        # small prob -> p_collapse big
-        # Higher pcollapse → more likely to collapse
-        # Lower pcollapse → less likely to collapse
-        p_collapse = 1.0 if initial_v0 == 0 else 1.0 - survival_prob
+        if initial_v0 == 0:
+            p_collapse = 1.0
+        else:
+            p_collapse = collapse_probability(
+                survival_prob,
+                shielding,
+                gamma=gamma,
+                alpha=alpha,
+                crowding_model=model_constants["crowding_model"],
+            )
         # Check if agent should fall
         rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
@@ -354,6 +358,8 @@ def init_params(
         "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
         "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
         "model_constants": {
+            # "risk": symmetric risk scaling (Eq. collapse); "survival": form of the submitted paper
+            "crowding_model": config.get("crowding_model", "risk"),
             # Firing line endpoints (m); default follows the line drawn on Wagner's map
             "firing_line": tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]]))),
             "n_shooters": config.get("n_shooters", 50),  # Shooter positions along the firing line
