@@ -61,7 +61,7 @@ for num_agents in sorted({k[0] for k in keys}):
         ax.spines["right"].set_visible(False)
         ax.tick_params(labelsize=16)
         ax.legend(
-            fontsize=14, loc="upper left", framealpha=0.9,
+            fontsize=14, loc="lower right", framealpha=0.9,
             title=rf"$N = {num_agents}$, ${symbol[fixed]} = {fixed_value:.1f}$", title_fontsize=14,
         )
         out = Path(output_dir) / f"{stem}_fallen_time_series_N{num_agents}_{fixed}{fixed_value:.1f}_vary_{vary}.pdf"
