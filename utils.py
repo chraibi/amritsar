@@ -34,7 +34,8 @@ def setup_geometry(extra_exits=()):
     extra_exits: optional list of (x, y) centres of additional openings, each
     modelled as a 1.5 m x 1 m box like the five openings from the map.
     """
-    wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
+    geometry_file = pathlib.Path(__file__).with_name("Jaleanwala_Bagh.xml")
+    wkt = rr.parse_geo_file(str(geometry_file))
 
     # %%
     # simulation might start with less than that, cause we will filter out some bad positions
@@ -75,10 +76,12 @@ def setup_simulation(params, rng):
     num_agents = params["num_agents"]
     trajectory_file = params["trajectory_file"]
     exit_areas = params["exit_areas"]
-    trajectory_writer = jps.SqliteTrajectoryWriter(
-        output_file=pathlib.Path(trajectory_file),
-        every_nth_frame=params["trajectory_every_nth_frame"],
-    )
+    trajectory_writer = None
+    if trajectory_file:
+        trajectory_writer = jps.SqliteTrajectoryWriter(
+            output_file=pathlib.Path(trajectory_file),
+            every_nth_frame=params["trajectory_every_nth_frame"],
+        )
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=params["walkable_area"],
@@ -348,11 +351,11 @@ def log_simulation_status(
     )
 
 
-def get_trajectory_name(params):
+def get_trajectory_name(params, trajectory_dir="traj"):
     """Create a descriptive trajectory name from simulation parameters."""
-    os.makedirs("traj", exist_ok=True)
+    os.makedirs(trajectory_dir, exist_ok=True)
     name = (
-        f"traj/agents{params['num_agents']}_"
+        f"{trajectory_dir}/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
         f"gamma{params['shielding_gamma']:.2f}_"
         f"alpha{params['shielding_alpha']:.2f}_"
@@ -372,9 +375,13 @@ def save_simulation_results(
     config,
     output_dir="fig_results",
     exited_per_exit=None,
+    run_name=None,
 ):
     """
     Save simulation results along with configuration and metadata.
+
+    With run_name, files go to <output_dir>/<run_name>/sweep_simulation_data_<run_name>.pkl
+    (deterministic paths for the reproduction pipeline); otherwise a timestamp is used.
 
     Args:
         evac_times: Dictionary of evacuation times
@@ -385,8 +392,9 @@ def save_simulation_results(
         output_dir: Output directory for results
     """
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_subdir = f"{output_dir}/{timestamp}"
-    results_file = f"{output_subdir}/sweep_simulation_data_{timestamp}.pkl"
+    tag = run_name or timestamp
+    output_subdir = f"{output_dir}/{tag}"
+    results_file = f"{output_subdir}/sweep_simulation_data_{tag}.pkl"
     os.makedirs(output_subdir, exist_ok=True)
 
     metadata = {
@@ -423,7 +431,7 @@ def save_simulation_results(
     with open(results_file, "wb") as f:
         pickle.dump(data_to_save, f)
 
-    summary_file = f"{output_subdir}/simulation_summary_{timestamp}.json"
+    summary_file = f"{output_subdir}/simulation_summary_{tag}.json"
     save_human_readable_summary(data_to_save, summary_file)
 
     logger.info(f"Simulation results saved to: {results_file}")

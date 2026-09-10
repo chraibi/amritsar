@@ -180,7 +180,8 @@ def run_evacuation_simulation(params):
             if number_active_agents == 0:
                 break
 
-    trajectory_writer.close()  # flush buffered frames and release the sqlite file
+    if trajectory_writer is not None:
+        trajectory_writer.close()  # flush buffered frames and release the sqlite file
 
     # Log execution time
     execution_time = time.time() - start_time
@@ -350,8 +351,12 @@ def init_params(
     seed=None,
     kappa=0.5,
     rep_idx=0,
+    trajectory_dir="traj",
 ):
-    """Define parameters and return parm object."""
+    """Define parameters and return parm object.
+
+    trajectory_dir=None disables trajectory output.
+    """
     # ================================= MODEL PARAMETERS =========
     time_scale = config["time_scale"]  # in seconds = 10 min of shooting
     update_time = config["update_time"]  # in seconds
@@ -420,7 +425,9 @@ def init_params(
             "survival_noise": config.get("survival_noise", 0.05),  # Relative noise on survival probability
         },
     }
-    params["trajectory_file"] = get_trajectory_name(params)
+    params["trajectory_file"] = (
+        get_trajectory_name(params, trajectory_dir) if trajectory_dir else ""
+    )
     return params
 
 
@@ -442,6 +449,22 @@ def parse_args():
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (DEBUG prints the per-interval simulation status)",
+    )
+    parser.add_argument(
+        "--output-dir", default=DEFAULT_OUTPUT_DIR, help="Directory for result pickles"
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Fixed name for the output files instead of a timestamp (used by reproduce.sh)",
+    )
+    parser.add_argument(
+        "--trajectory-dir",
+        default="traj",
+        help="Directory for sqlite trajectories; 'none' disables trajectory output",
+    )
+    parser.add_argument(
+        "--jobs", type=int, default=-1, help="Parallel workers (default: all cores)"
     )
     return parser.parse_args()
 
@@ -513,6 +536,7 @@ if __name__ == "__main__":
             alpha=alpha_val,
             seed=seed_val,
             rep_idx=rep_idx,
+            trajectory_dir=None if args.trajectory_dir == "none" else args.trajectory_dir,
         )
         return (
             num_agents_val,
@@ -524,7 +548,7 @@ if __name__ == "__main__":
         )
 
     # Run all tasks fully parallel
-    results = Parallel(n_jobs=-1)(
+    results = Parallel(n_jobs=args.jobs)(
         delayed(run_single_simulation)(*task) for task in all_tasks
     )
 
@@ -551,6 +575,7 @@ if __name__ == "__main__":
         fallen_time_series=fallen_time_series,
         cl=cl,
         config=config,
-        output_dir=DEFAULT_OUTPUT_DIR,
+        output_dir=args.output_dir,
         exited_per_exit=exited_per_exit,
+        run_name=args.run_name,
     )

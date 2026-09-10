@@ -12,3 +12,5 @@ traj/
 /*.pdf
 /*.png
 log.txt
+results/
+sweep*.log

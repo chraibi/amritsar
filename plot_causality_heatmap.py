@@ -61,8 +61,7 @@ def plot_causality_grid(
     cbar.ax.minorticks_off()
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
-    ax.set_xticklabels(ax.get_xticks(), fontsize=fs)
-    ax.set_yticklabels(ax.get_yticks(), fontsize=fs)
+    ax.tick_params(labelsize=fs)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
 

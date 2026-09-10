@@ -4,7 +4,7 @@ Reference dataset: `data_to_publish/20250707_224324/sweep_simulation_data_202507
 (sweep with N = 5000, 10000, 15000; lambda = 0.2; alpha = 0.3, 0.7; 5 repetitions;
 config in the accompanying `simulation_summary_*.json`).
 
-Scripts that take a pickle are run as `python <script> <pickle>` and write to `fig_results/`.
+Scripts that take a pickle are run as `python <script> <pickle>` and write to a `figures/` directory next to the pickle. `./reproduce.sh` runs all sweeps, all scripts below and `make_report.py`; see README.
 Scripts without input compute the figure analytically from the model equations.
 
 | Article figure (`figs/`) | Script | Input | Notes |

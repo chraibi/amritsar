@@ -87,6 +87,37 @@ The simulation is controlled through a `config.json` file.
 | `survival_noise` | float | Relative noise applied to the survival probability | 0.05 |
 
 
+## Reproducing the results of the paper
+
+Everything in the article (simulations, figures, tables) is produced by one command
+from a clean checkout:
+
+```bash
+pip install -r requirements.txt
+./reproduce.sh            # all sweeps, figures and the report; many hours on a multi-core machine
+./reproduce.sh --quick    # same pipeline with tiny crowds, a few minutes, to check the setup
+```
+
+`reproduce.sh` runs the five sweeps defined by `config.json` (main results),
+`config_tau120.json` (lower-bound sensitivity), `config_open_gates_w3.json`,
+`config_open_gates_w4.json` (wider openings) and `config_sixth_door.json` (the closed
+door on the north wall open), then the plot scripts and `make_report.py`. Output goes
+to `results/` (override with `RESULTS=/path ./reproduce.sh`):
+
+```
+results/<sweep>/sweep_simulation_data_<sweep>.pkl   raw results
+results/<sweep>/figures/                            time series and fatality maps
+results/model_figures/                              figures illustrating the model
+results/report.md, results/report.csv               tables for all sweeps
+results/environment.txt                             git commit, Python version, pip freeze
+results/traj/main/                                  sqlite trajectories of the main sweep
+```
+
+Runs are seeded (`global_seed` in the config) and reproducible for a fixed jupedsim
+version, which is pinned in `requirements.txt`. The results reported in the article
+were produced with the tagged release (see Citation) by exactly this command;
+`environment.txt` in the archived results records the commit and package versions.
+
 ## Development
 
 ```bash
