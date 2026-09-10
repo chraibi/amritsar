@@ -32,6 +32,8 @@ time_scale = config["time_scale"]
 firing_line = tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]])))
 n_shooters = config.get("n_shooters", 50)
 p_min, p_max = config.get("p_min", 0.05), config.get("p_max", 0.95)
+times = [0, 600]
+contour_level = 0.5
 
 walkable_area = setup_geometry()[0]
 min_x, min_y, max_x, max_y = walkable_area.bounds
@@ -42,7 +44,7 @@ x = np.linspace(min_x, max_x, nx)
 y = np.linspace(min_y, max_y, ny)
 X, Y = np.meshgrid(x, y)
 
-for t in [0, 200, 400, 600]:
+for t in times:
     Z = np.full_like(X, np.nan)
     for i in range(ny):
         for j in range(nx):
@@ -79,7 +81,7 @@ for t in [0, 200, 400, 600]:
     cbar = fig.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=fs)
     cbar.set_label("Survival Probability", fontsize=fs)
-    cbar.set_ticks(np.linspace(p_min, p_max, num=2))
+    cbar.set_ticks([p_min, contour_level, p_max])
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
 
     ax.set_title(f"time = {t} s", fontsize=fs)
@@ -95,6 +97,10 @@ for t in [0, 200, 400, 600]:
         x_hole, y_hole = interior.xy
         ax.plot(x_hole, y_hole, color="black", linewidth=1)
     ax.plot(shooters[:, 0], shooters[:, 1], "w.", markersize=3, label="firing line")
+    cs = ax.contour(X, Y, Z, levels=[contour_level], colors="white", linewidths=2, linestyles="--")
+    ax.clabel(
+        cs, fmt=lambda v: f"p = {v:.1f}", fontsize=fs - 4, colors="white", rightside_up=True
+    )
 
     fig.tight_layout()
     fig.savefig(f"rspace_at_time_{t}.pdf", bbox_inches="tight")
