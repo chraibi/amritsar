@@ -54,7 +54,11 @@ def plot_causality_grid(
     cbar = fig.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=fs)
     cbar.ax.tick_params(labelsize=fs)
-    cbar.set_label(f"Fallen agents per {grid_size} m cell (mean over runs)", fontsize=fs)
+    cbar.set_label(f"Fallen per {grid_size} m cell", fontsize=fs)
+    ticks = [t for t in (1, 3, 10, 30, 100, 300) if t <= max(vmax, 2.0)]
+    cbar.set_ticks(ticks)
+    cbar.set_ticklabels([str(t) for t in ticks])
+    cbar.ax.minorticks_off()
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
     ax.set_xticklabels(ax.get_xticks(), fontsize=fs)
