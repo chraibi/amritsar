@@ -16,6 +16,7 @@
 #   results/report.md, results/report.csv               tables of all sweeps
 #   results/environment.txt                             git commit, python, pip freeze
 #   results/traj/<sweep>/                               sqlite trajectories (main sweep only)
+#   results.zip                                         everything above except traj/ and the logs
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -116,4 +117,18 @@ MAIN_CONFIG="$(cd "$(dirname "$(config_path main)")" && pwd)/$(basename "$(confi
 
 # --- report
 $PYTHON make_report.py "$RESULTS"
-echo "== $(date '+%F %T') done in $(elapsed): $RESULTS/report.md"
+
+# --- archive (pickles, figures, report, environment; trajectories stay on disk)
+ZIP="${RESULTS%/}.zip"
+$PYTHON - "$RESULTS" "$ZIP" <<'EOF'
+import sys, zipfile
+from pathlib import Path
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for f in sorted(root.rglob("*")):
+        rel = f.relative_to(root)
+        if f.is_file() and rel.parts[0] != "traj" and f.suffix != ".log":
+            z.write(f, Path(root.name) / rel)
+print(f"{out} ({out.stat().st_size / 1e6:.1f} MB)")
+EOF
+echo "== $(date '+%F %T') done in $(elapsed): $RESULTS/report.md and $ZIP"

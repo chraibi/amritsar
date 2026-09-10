@@ -113,6 +113,7 @@ results/model_figures/                              figures illustrating the mod
 results/report.md, results/report.csv               tables for all sweeps
 results/environment.txt                             git commit, Python version, pip freeze
 results/traj/main/                                  sqlite trajectories of the main sweep
+results.zip                                         all of the above except the trajectories
 ```
 
 Runs are seeded (`global_seed` in the config) and reproducible for a fixed jupedsim
