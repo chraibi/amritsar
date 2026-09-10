@@ -4,6 +4,9 @@
 #   ./reproduce.sh              full sweeps (many hours; runs use all cores)
 #   ./reproduce.sh --quick      same pipeline with tiny crowds and short runs (minutes)
 #   RESULTS=/data/amritsar ./reproduce.sh     write to another directory
+#   JOBS=8 ./reproduce.sh                      limit parallel workers (default: all cores)
+#
+# Progress: one line per finished run, "[sweep] 12/60 runs done, 01:23:45 elapsed".
 #
 # Output layout (default RESULTS=results):
 #   results/<sweep>/sweep_simulation_data_<sweep>.pkl   raw results of one sweep
@@ -18,6 +21,16 @@ cd "$(dirname "$0")"
 
 RESULTS="${RESULTS:-results}"
 PYTHON="${PYTHON:-python}"
+JOBS="${JOBS:--1}"
+START=$(date +%s)
+elapsed() { local s=$(( $(date +%s) - START )); printf "%02d:%02d:%02d" $((s/3600)) $((s%3600/60)) $((s%60)); }
+runs_in() {  # number of simulations a config defines
+  $PYTHON - "$1" <<'EOF'
+import json, sys
+c = json.load(open(sys.argv[1]))
+print(len(c["num_agents_list"]) * len(c["lambda_decay_list"]) * len(c["alpha_list"]) * len(c["kappa_list"]) * c["num_reps"])
+EOF
+}
 QUICK=0
 [[ "${1:-}" == "--quick" ]] && QUICK=1
 
@@ -68,15 +81,24 @@ for s in $SWEEPS; do
   fi
   traj="none"
   [[ "$s" == "main" ]] && traj="$RESULTS/traj/$s"
-  echo "== $s: running $(config_path "$s")"
+  total=$(runs_in "$(config_path "$s")")
+  echo "== $(date '+%F %T') [$s] starting $total runs with config $(config_path "$s") ($(elapsed) elapsed)"
   $PYTHON main.py --config "$(config_path "$s")" --output-dir "$RESULTS" --run-name "$s" \
-    --trajectory-dir "$traj" --log-level INFO 2>&1 | tee "$RESULTS/$s.log" | grep -E "Simulation finished|saved to" || true
+    --trajectory-dir "$traj" --log-level INFO --jobs "$JOBS" 2>&1 \
+    | tee "$RESULTS/$s.log" \
+    | { done=0; while IFS= read -r line; do
+          case "$line" in
+            *"Simulation finished"*) done=$((done + 1)); echo "[$s] $done/$total runs done, $(elapsed) elapsed" ;;
+            *Traceback*|*Error*|*"saved to"*) echo "$line" ;;
+          esac
+        done; } || true
+  echo "== $(date '+%F %T') [$s] finished ($(elapsed) elapsed)"
 done
 
 # --- figures from the sweeps
 for s in $SWEEPS; do
   pkl="$RESULTS/$s/sweep_simulation_data_$s.pkl"
-  echo "== $s: figures"
+  echo "== $(date '+%F %T') [$s] figures ($(elapsed) elapsed)"
   $PYTHON plot_fallen_time_series.py "$pkl" --vary alpha
   $PYTHON plot_fallen_time_series.py "$pkl" --vary kappa
   $PYTHON plot_causality_heatmap.py "$pkl"
@@ -94,4 +116,4 @@ MAIN_CONFIG="$(cd "$(dirname "$(config_path main)")" && pwd)/$(basename "$(confi
 
 # --- report
 $PYTHON make_report.py "$RESULTS"
-echo "== done: $RESULTS/report.md"
+echo "== $(date '+%F %T') done in $(elapsed): $RESULTS/report.md"

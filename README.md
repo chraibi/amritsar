@@ -98,6 +98,8 @@ pip install -r requirements.txt
 ./reproduce.sh --quick    # same pipeline with tiny crowds, a few minutes, to check the setup
 ```
 
+`JOBS=8 ./reproduce.sh` limits the parallel workers; the script prints one progress line per finished run.
+
 `reproduce.sh` runs the five sweeps defined by `config.json` (main results),
 `config_tau120.json` (lower-bound sensitivity), `config_open_gates_w3.json`,
 `config_open_gates_w4.json` (wider openings) and `config_sixth_door.json` (the closed
