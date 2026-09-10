@@ -59,7 +59,8 @@ def setup_geometry():
 
 
 def setup_simulation(params, rng):
-    """Create simulation, init agents with journeys; return simulation, exits, journeys and writer.
+    """Create simulation and agents; return simulation, exit ids, journey ids, initial
+    target exit per agent, and the trajectory writer.
 
     The caller must close the trajectory writer at the end of the run.
     """
@@ -95,6 +96,7 @@ def setup_simulation(params, rng):
         distance_to_polygon=params["distance_to_polygon"],
     )
     v_distribution = rng.normal(params["v0_max"], params["v0_std"], num_agents)
+    agent_targets = {}
     for pos, v0 in zip(pos_in_spawning_area, v_distribution, strict=False):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,
@@ -104,7 +106,7 @@ def setup_simulation(params, rng):
             rng=rng,
             determinism_strength=params["determinism_strength_exits"],
         )
-        simulation.add_agent(
+        agent_id = simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
                 journey_id=journey_id,
                 stage_id=exit_id,
@@ -113,8 +115,9 @@ def setup_simulation(params, rng):
                 radius=params["agent_radius"],
             )
         )
+        agent_targets[agent_id] = exit_id
 
-    return simulation, exit_ids, journey_ids, trajectory_writer
+    return simulation, exit_ids, journey_ids, agent_targets, trajectory_writer
 
 
 def convert_seconds_to_hms(seconds):
@@ -301,15 +304,23 @@ def get_nearest_exit_id(
     return selected_journey_id, selected_exit_id, selected_distance
 
 
-def maybe_remove_agent(
-    simulation, agent, exit_area, exit_probability, exit_radius, rng
-):
-    """Probabilistically remove agent if they are near an exit centroid."""
-    distance_to_exit = Point(agent.position).distance(exit_area.centroid)
-    if distance_to_exit < exit_radius and rng.random() < exit_probability:
-        simulation.mark_agent_for_removal(agent.id)
-        return True
-    return False
+def exit_capacity_per_update(flow_rate, exit_width, update_time):
+    """Agents that can pass one opening per update: J * w * dt (persons)."""
+    return flow_rate * exit_width * update_time
+
+
+def select_exiting_agents(candidates, credit, capacity):
+    """Pick the agents allowed through an opening in this update.
+
+    candidates: list of (distance to the opening, agent id) for agents inside the
+    exit zone. credit: unused capacity carried over from earlier updates. The
+    closest agents go first; the carry-over is capped at one update's capacity so
+    an empty opening does not bank a burst. Returns (agent ids, new credit).
+    """
+    credit = min(credit + capacity, 2 * capacity)
+    chosen = [agent_id for _, agent_id in sorted(candidates)[: int(credit)]]
+    credit -= len(chosen)
+    return chosen, min(credit, capacity)
 
 
 def log_simulation_status(
@@ -336,9 +347,8 @@ def get_trajectory_name(params):
         f"lambda{params['lambda_decay']:.2f}_"
         f"gamma{params['shielding_gamma']:.2f}_"
         f"alpha{params['shielding_alpha']:.2f}_"
+        f"kappa{params['kappa']:.2f}_"
         f"tscale{params['time_scale']}_"
-        f"detexit{params['determinism_strength_exits']:.1f}_"
-        f"probexit{params['exit_probability']:.1f}_"
         f"seed{params['seed']}_"
         f"rep{params['rep_idx']}.sqlite"
     )
@@ -386,10 +396,10 @@ def save_simulation_results(
         "results": cl,
         # Data structure documentation
         "data_structure_info": {
-            "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of evacuation times",
-            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of dead agent counts",
-            "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha) containing (time_series, fallen_counts) tuples",
-            "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of fallen agent positions",
+            "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of evacuation times",
+            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of dead agent counts",
+            "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing (time_series, fallen_counts) tuples",
+            "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of fallen agent positions",
         },
     }
 
@@ -421,7 +431,7 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
     all_casualties = []
 
     for key, evac_list in evac_times.items():
-        num_agents, lambda_decay, alpha = key
+        num_agents, lambda_decay, alpha, kappa = key
         dead_list = dead[key]
 
         # Calculate statistics for this parameter combination
@@ -429,6 +439,7 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
             "num_agents": num_agents,
             "lambda_decay": lambda_decay,
             "alpha": alpha,
+            "kappa": kappa,
             "num_repetitions": len(evac_list),
             "evacuation_time": {
                 "mean": np.mean(evac_list),
@@ -460,11 +471,13 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
         num_agents_vals = [k[0] for k in all_keys]
         lambda_vals = [k[1] for k in all_keys]
         alpha_vals = [k[2] for k in all_keys]
+        kappa_vals = [k[3] for k in all_keys]
 
         summary["overall_statistics"]["parameter_ranges"] = {
             "num_agents": {"min": min(num_agents_vals), "max": max(num_agents_vals)},
             "lambda_decay": {"min": min(lambda_vals), "max": max(lambda_vals)},
             "alpha": {"min": min(alpha_vals), "max": max(alpha_vals)},
+            "kappa": {"min": min(kappa_vals), "max": max(kappa_vals)},
         }
 
     return summary

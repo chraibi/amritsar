@@ -98,12 +98,12 @@ fig, ax = plt.subplots()
 
 min_x, min_y, max_x, max_y = walkable_area.bounds
 
-for (num_agents, lambda_decay, alpha), fallen_positions in cl.items():
+for (num_agents, _lambda_decay, alpha, kappa), fallen_positions in cl.items():
     folder = Path(output_dir) / f"N_{num_agents}"
     folder.mkdir(parents=True, exist_ok=True)
     heatmap_file = (
         folder
-        / f"{stem}_causality_lambda_{lambda_decay}_alpha_{alpha}_N_{num_agents}.pdf"
+        / f"{stem}_causality_alpha_{alpha}_kappa_{kappa}_N_{num_agents}.pdf"
     )
 
     plot_causality_grid(

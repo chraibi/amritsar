@@ -26,7 +26,7 @@ from utils import (
     get_nearest_exit_id,
     get_trajectory_name,
     log_simulation_status,
-    maybe_remove_agent,
+    select_exiting_agents,
     setup_geometry,
     setup_simulation,
     save_simulation_results,
@@ -81,13 +81,17 @@ def run_evacuation_simulation(params):
     seed = params["seed"]
     rng = np.random.default_rng(seed)
     # Create simulation
-    simulation, exit_ids, journey_ids, trajectory_writer = setup_simulation(params, rng)
+    simulation, exit_ids, journey_ids, agent_targets, trajectory_writer = setup_simulation(
+        params, rng
+    )
     # Unpack parameters
     update_time = params["update_time"]
     lambda_decay = params["lambda_decay"]
     time_scale = params["time_scale"]
     determinism_strength_exits = params["determinism_strength_exits"]
-    exit_probability = params["exit_probability"]
+    kappa = params["kappa"]
+    exit_capacity = params["exit_capacity"]
+    exit_credit = [0.0] * len(params["exit_areas"])
     exit_areas = params["exit_areas"]
     num_agents = params["num_agents"]
     exit_radius = params["wp_radius"]
@@ -144,12 +148,15 @@ def run_evacuation_simulation(params):
             remove_or_update_journey(
                 simulation,
                 fallen_status_agents,
+                agent_targets,
                 exit_areas,
                 exit_ids,
                 journey_ids,
-                determinism_strength_exits,
-                exit_probability,
-                exit_radius,
+                exit_credit,
+                beta=determinism_strength_exits,
+                kappa=kappa,
+                exit_capacity=exit_capacity,
+                exit_radius=exit_radius,
                 rng=rng,
             )
 
@@ -270,43 +277,56 @@ def update_agent_statuses(
 def remove_or_update_journey(
     simulation,
     fallen_status_agents,
+    agent_targets,
     exit_areas,
     exit_ids,
     journey_ids,
-    determinism_strength,
-    exit_probability,
+    exit_credit,
+    beta,
+    kappa,
+    exit_capacity,
     exit_radius,
     rng,
 ):
-    """Check if agent has to be removed otherwise update journey."""
-    for agent in simulation.agents():
-        agent_to_be_removed = False  # assume agent is not exiting the simulation yet.
+    """Let agents through the openings up to their capacity, then re-decide targets.
 
-        # Only process movement for active agents
-        if not fallen_status_agents[agent.id]:
-            # Try to remove agent if near exit
-            for exit_area, _exit_id in zip(exit_areas, exit_ids, strict=False):
-                agent_to_be_removed = maybe_remove_agent(
-                    simulation,
-                    agent,
-                    exit_area,
-                    exit_probability=exit_probability,
-                    exit_radius=exit_radius,
-                    rng=rng,
-                )
-                if agent_to_be_removed:
-                    break
+    Each opening passes at most `exit_capacity` agents per update (closest first,
+    unused capacity carried in `exit_credit`). Every remaining active agent keeps
+    its target opening with probability kappa, otherwise draws a new one with the
+    distance-biased rule of get_nearest_exit_id (exponent beta).
+    """
+    active = [a for a in simulation.agents() if not fallen_status_agents[a.id]]
+    removed = set()
+    for k, exit_area in enumerate(exit_areas):
+        centre = exit_area.centroid
+        candidates = []
+        for agent in active:
+            if agent.id in removed:
+                continue
+            distance = Point(agent.position).distance(centre)
+            if distance < exit_radius:
+                candidates.append((distance, agent.id))
+        chosen, exit_credit[k] = select_exiting_agents(
+            candidates, exit_credit[k], exit_capacity
+        )
+        for agent_id in chosen:
+            simulation.mark_agent_for_removal(agent_id)
+            removed.add(agent_id)
 
-        if not agent_to_be_removed:
-            new_journey_id, new_exit_id, *_ = get_nearest_exit_id(
-                agent.position,
-                exit_areas,
-                exit_ids,
-                journey_ids,
-                rng=rng,
-                determinism_strength=determinism_strength,
-            )
+    for agent in active:
+        if agent.id in removed or rng.random() < kappa:
+            continue
+        new_journey_id, new_exit_id, *_ = get_nearest_exit_id(
+            agent.position,
+            exit_areas,
+            exit_ids,
+            journey_ids,
+            rng=rng,
+            determinism_strength=beta,
+        )
+        if new_exit_id != agent_targets[agent.id]:
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
+            agent_targets[agent.id] = new_exit_id
 
 
 def init_params(
@@ -321,6 +341,7 @@ def init_params(
     exit_areas,
     gamma=0.8,
     seed=None,
+    kappa=0.5,
     rep_idx=0,
 ):
     """Define parameters and return parm object."""
@@ -330,10 +351,10 @@ def init_params(
     v0_max = config["v0_max"]  # m/s
     # Add some variability to avoid synchronized agent falls
     determinism_strength_exits = config["determinism_strength_exits"]
-    exit_probability = config["exit_probability"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
+    exit_capacity = config["exit_flow_rate"] * config["exit_width"] * update_time
     logger.debug(
-        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
+        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity:.1f}, determinism_strength_exits: {determinism_strength_exits}"
     )
     # =============================================================
     if not seed:
@@ -351,8 +372,9 @@ def init_params(
         # ============================= AGENT PARAMETERS ============
         "time_scale": time_scale,  # 600 seconds = 10 min of simulation time
         "update_time": update_time,  # How often to update agent status (10 seconds)
-        "determinism_strength_exits": determinism_strength_exits,  # Controls randomness in exit selection (0.2)
-        "exit_probability": exit_probability,  # Probability of agent exiting when at exit (0.2)
+        "determinism_strength_exits": determinism_strength_exits,  # beta: distance bias of the exit choice
+        "kappa": kappa,  # Probability of keeping the current target opening per update
+        "exit_capacity": exit_capacity,  # Agents that can pass one opening per update
         "lambda_decay": lambda_decay,
         "trajectory_file": "",
         "num_reps": num_reps,
@@ -424,6 +446,7 @@ if __name__ == "__main__":
     num_agents_list = config["num_agents_list"]
     lambda_decay_list = config["lambda_decay_list"]
     alpha_list = config["alpha_list"]
+    kappa_list = config["kappa_list"]
     num_reps = config["num_reps"]
     gamma = config["gamma"]
     sigma = config["sigma"]
@@ -442,31 +465,34 @@ if __name__ == "__main__":
         rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
         for lambda_decay_val in lambda_decay_list:
             for alpha_val in alpha_list:
-                for rep_idx in range(num_reps):
-                    task = (
-                        num_agents_val,
-                        lambda_decay_val,
-                        alpha_val,
-                        sigma,
-                        rep_idx,
-                        rep_seeds[rep_idx],
-                        config,
-                    )
-                    all_tasks.append(task)
+                for kappa_val in kappa_list:
+                    for rep_idx in range(num_reps):
+                        task = (
+                            num_agents_val,
+                            lambda_decay_val,
+                            alpha_val,
+                            kappa_val,
+                            sigma,
+                            rep_idx,
+                            rep_seeds[rep_idx],
+                            config,
+                        )
+                        all_tasks.append(task)
 
     def run_single_simulation(
-        num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val, config
+        num_agents_val, lambda_decay_val, alpha_val, kappa_val, sigma, rep_idx, seed_val, config
     ):
         """Run a single simulation with given parameters in Parallel."""
         configure_logging(args.log_level)  # worker processes start unconfigured
         logger.info(
-            f"Running rep {rep_idx} (seed {seed_val}): num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma={sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
+            f"Running rep {rep_idx} (seed {seed_val}): num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma={sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}, kappa={kappa_val:.2f}"
         )
         params = init_params(
             num_agents=num_agents_val,
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
             config=config,
+            kappa=kappa_val,
             walkable_area=walkable_area,
             spawning_area=spawning_area,
             exit_areas=exit_areas,
@@ -480,6 +506,7 @@ if __name__ == "__main__":
             num_agents_val,
             lambda_decay_val,
             alpha_val,
+            kappa_val,
             rep_idx,
             run_evacuation_simulation(params=params),
         )
@@ -490,8 +517,8 @@ if __name__ == "__main__":
     )
 
     # Organize the results
-    for num_agents_val, lambda_decay_val, alpha_val, _rep_idx, result in results:
-        key = (num_agents_val, lambda_decay_val, alpha_val)
+    for num_agents_val, lambda_decay_val, alpha_val, kappa_val, _rep_idx, result in results:
+        key = (num_agents_val, lambda_decay_val, alpha_val, kappa_val)
         if key not in evac_times:
             evac_times[key] = []
             dead[key] = []

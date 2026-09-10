@@ -59,9 +59,11 @@ The simulation is controlled through a `config.json` file.
 | **Agent Parameters** | | | |
 | `num_agents_list` | list | List of agent counts to test | [100, 200, 500] |
 | `v0_max` | float | Maximum agent velocity (m/s) | 3.0 |
-| `determinism_strength_exits` | float | Exit selection randomness (0-1) | 0.2 |
-| `exit_probability` | float | Probability of exiting when at exit | 0.2 |
-| `wp_radius` | float | Exit detection radius (meters) | 1.0 |
+| `determinism_strength_exits` | float | β in the exit choice P_i ∝ d_i^-β | 1.0 |
+| `kappa_list` | list | Persistence: probability per update of keeping the target opening | [0.5, 0.9] |
+| `exit_flow_rate` | float | J, persons per metre per second an opening passes | 1.3 |
+| `exit_width` | float | w, width of an opening (m); capacity per update = J·w·update_time | 1.5 |
+| `wp_radius` | float | Radius of the exit zone around an opening (m) | 10 |
 | **Model Parameters** | | | |
 | `lambda_decay_list` | list | Stamina decay rates to test | [0.1, 0.5, 1.0] |
 | `alpha_list` | list | Shielding effectiveness values | [0.0, 0.5, 1.0] |
@@ -121,7 +123,7 @@ See [FIGURES.md](FIGURES.md) for the mapping between article figures, scripts an
 Scripts that read a sweep pickle share their loading code in `plot_utils.py`:
 
 ```bash
-python plot_cumulative_fallen_agents_time_alpha.py fig_results/<run>/sweep_simulation_data_<run>.pkl
+python plot_fallen_time_series.py fig_results/<run>/sweep_simulation_data_<run>.pkl [--vary alpha|kappa]
 python plot_causality_heatmap.py fig_results/<run>/sweep_simulation_data_<run>.pkl
 python plot_heatmap_once.py
 python plot_heatmap_rspace.py

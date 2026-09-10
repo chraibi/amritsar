@@ -7,6 +7,8 @@ from shapely import Point, Polygon
 from main import generate_seeds
 from utils import (
     calculate_probability,
+    exit_capacity_per_update,
+    select_exiting_agents,
     collapse_hazard,
     collapse_probability,
     crowding_factor,
@@ -81,6 +83,28 @@ def test_collapse_hazard_on_the_line_equals_baseline():
     assert collapse_hazard(Point(x, y), 600, 0.5, **kw) == pytest.approx(1.5 * 10 / 60, abs=1e-3)
     kw["tau_line"] = 1.0
     assert collapse_hazard(Point(x, y), 600, 0.5, **kw) == 1.0
+
+
+def test_exit_capacity_matches_flow_times_width_times_dt():
+    assert exit_capacity_per_update(1.3, 1.5, 10) == pytest.approx(19.5)
+
+
+def test_select_exiting_agents_closest_first_with_carry_over():
+    candidates = [(5.0, "c"), (1.0, "a"), (3.0, "b"), (9.0, "d")]
+    chosen, credit = select_exiting_agents(candidates, credit=0.0, capacity=2.5)
+    assert chosen == ["a", "b"]
+    assert credit == pytest.approx(0.5)
+    chosen, credit = select_exiting_agents(candidates, credit=credit, capacity=2.5)
+    assert chosen == ["a", "b", "c"]  # 0.5 carried over makes 3
+    assert credit == pytest.approx(0.0)
+
+
+def test_select_exiting_agents_does_not_bank_a_burst():
+    _, credit = select_exiting_agents([], credit=0.0, capacity=2.5)
+    _, credit = select_exiting_agents([], credit=credit, capacity=2.5)
+    assert credit <= 2.5
+    chosen, _ = select_exiting_agents([(i, i) for i in range(20)], credit=credit, capacity=2.5)
+    assert len(chosen) <= 5
 
 
 def test_collapse_probability_rejects_unknown_model():
