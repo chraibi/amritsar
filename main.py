@@ -88,7 +88,7 @@ def run_evacuation_simulation(params):
     update_time = params["update_time"]
     lambda_decay = params["lambda_decay"]
     time_scale = params["time_scale"]
-    determinism_strength_exits = params["determinism_strength_exits"]
+    exit_choice_exponent = params["exit_choice_exponent"]
     kappa = params["kappa"]
     exit_capacity = params["exit_capacity"]
     exit_credit = [0.0] * len(params["exit_areas"])
@@ -153,7 +153,7 @@ def run_evacuation_simulation(params):
                 exit_ids,
                 journey_ids,
                 exit_credit,
-                beta=determinism_strength_exits,
+                beta=exit_choice_exponent,
                 kappa=kappa,
                 exit_capacity=exit_capacity,
                 exit_radius=exit_radius,
@@ -322,7 +322,7 @@ def remove_or_update_journey(
             exit_ids,
             journey_ids,
             rng=rng,
-            determinism_strength=beta,
+            exit_choice_exponent=beta,
         )
         if new_exit_id != agent_targets[agent.id]:
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
@@ -350,11 +350,11 @@ def init_params(
     update_time = config["update_time"]  # in seconds
     v0_max = config["v0_max"]  # m/s
     # Add some variability to avoid synchronized agent falls
-    determinism_strength_exits = config["determinism_strength_exits"]
+    exit_choice_exponent = config["exit_choice_exponent"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
     exit_capacity = config["exit_flow_rate"] * config["exit_width"] * update_time
     logger.debug(
-        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity:.1f}, determinism_strength_exits: {determinism_strength_exits}"
+        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity:.1f}, exit_choice_exponent: {exit_choice_exponent}"
     )
     # =============================================================
     if not seed:
@@ -372,7 +372,7 @@ def init_params(
         # ============================= AGENT PARAMETERS ============
         "time_scale": time_scale,  # 600 seconds = 10 min of simulation time
         "update_time": update_time,  # How often to update agent status (10 seconds)
-        "determinism_strength_exits": determinism_strength_exits,  # beta: distance bias of the exit choice
+        "exit_choice_exponent": exit_choice_exponent,  # beta: distance bias of the exit choice
         "kappa": kappa,  # Probability of keeping the current target opening per update
         "exit_capacity": exit_capacity,  # Agents that can pass one opening per update
         "lambda_decay": lambda_decay,

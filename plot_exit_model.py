@@ -2,7 +2,7 @@
 capacity-limited openings.
 
 Usage: python plot_exit_model.py [config.json]
-Writes exit_choice_map.pdf, exit_persistence.pdf and exit_capacity.pdf.
+Writes exit_choice_map.pdf and exit_persistence.pdf.
 """
 
 import json
@@ -13,16 +13,14 @@ import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from shapely import Point
 
-from utils import exit_capacity_per_update, setup_geometry
+from utils import setup_geometry
 
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
 with open(config_file) as f:
     config = json.load(f)
-beta = config["determinism_strength_exits"]
+beta = config["exit_choice_exponent"]
 kappas = config["kappa_list"]
 dt, T = config["update_time"], config["time_scale"]
-flow, width = config["exit_flow_rate"], config["exit_width"]
-crowd_sizes = config["num_agents_list"]
 
 walkable_area, exit_areas, _ = setup_geometry()
 min_x, min_y, max_x, max_y = walkable_area.bounds
@@ -85,22 +83,3 @@ fig.savefig("exit_persistence.pdf", bbox_inches="tight")
 plt.close(fig)
 print("exit_persistence.pdf")
 
-# ---------- 3. Capacity: the most people that can leave through the five openings
-cap = exit_capacity_per_update(flow, width, dt) * len(exit_areas) / dt  # persons per s
-t = np.linspace(0, T, 200)
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(t, cap * t, color="black", lw=2, label=rf"{len(exit_areas)} openings, $J = {flow}$ /m/s, $w = {width}$ m")
-for n in crowd_sizes:
-    ax.axhline(n, color="gray", ls="--", lw=1)
-    ax.text(5, n, f"N = {n}", va="bottom", ha="left", fontsize=fs - 3, color="gray")
-ax.set_xlabel("Time [s]", fontsize=fs)
-ax.set_ylabel("Maximum number of people that can have left", fontsize=fs)
-ax.set_xlim(0, T)
-ax.set_ylim(0, max(crowd_sizes) * 1.05)
-ax.tick_params(labelsize=fs - 2)
-ax.grid(alpha=0.3)
-ax.legend(fontsize=fs - 2, frameon=False, loc="upper left", bbox_to_anchor=(0, 0.9))
-fig.tight_layout()
-fig.savefig("exit_capacity.pdf", bbox_inches="tight")
-plt.close(fig)
-print(f"exit_capacity.pdf  (max outflow {cap:.1f}/s, {cap * T:.0f} in {T} s)")

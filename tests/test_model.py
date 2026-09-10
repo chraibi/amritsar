@@ -149,7 +149,7 @@ def test_nearest_exit_is_chosen_deterministically_with_strong_determinism():
     exits = [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]), Polygon([(100, 0), (101, 0), (101, 1), (100, 1)])]
     rng = np.random.default_rng(0)
     journey, exit_id, dist = get_nearest_exit_id(
-        Point(2, 0.5), exits, exit_ids=[10, 20], journey_ids=[1, 2], rng=rng, determinism_strength=50
+        Point(2, 0.5), exits, exit_ids=[10, 20], journey_ids=[1, 2], rng=rng, exit_choice_exponent=50
     )
     assert (journey, exit_id) == (1, 10)
     assert dist == pytest.approx(1.0)

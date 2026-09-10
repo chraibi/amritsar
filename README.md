@@ -59,7 +59,7 @@ The simulation is controlled through a `config.json` file.
 | **Agent Parameters** | | | |
 | `num_agents_list` | list | List of agent counts to test | [100, 200, 500] |
 | `v0_max` | float | Maximum agent velocity (m/s) | 3.0 |
-| `determinism_strength_exits` | float | β in the exit choice P_i ∝ d_i^-β | 1.0 |
+| `exit_choice_exponent` | float | β in the exit choice P_i ∝ d_i^-β | 1.0 |
 | `kappa_list` | list | Persistence: probability per update of keeping the target opening | [0.5, 0.9] |
 | `exit_flow_rate` | float | J, persons per metre per second an opening passes | 1.3 |
 | `exit_width` | float | w, width of an opening (m); capacity per update = J·w·update_time | 1.5 |

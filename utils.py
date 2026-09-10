@@ -104,7 +104,7 @@ def setup_simulation(params, rng):
             exit_ids,
             journey_ids,
             rng=rng,
-            determinism_strength=params["determinism_strength_exits"],
+            exit_choice_exponent=params["exit_choice_exponent"],
         )
         agent_id = simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
@@ -278,7 +278,7 @@ def get_nearest_exit_id(
     exit_ids: list[int],
     journey_ids: list[int],
     rng,
-    determinism_strength: float = 1.0,
+    exit_choice_exponent: float = 1.0,
 ) -> tuple[int, int, float]:
     """
     Return a random exit ID and its distance, with bias toward the nearest exit.
@@ -287,7 +287,7 @@ def get_nearest_exit_id(
         position: The agent's current position.
         exit_areas: List of exit polygons.
         exit_ids: List of exit IDs corresponding to exit_areas.
-        determinism_strength: Controls how strongly randomness affects exit selection.
+        exit_choice_exponent: Exponent beta of the inverse-distance weighting.
         The higher the determinism factor, the more deterministic the choice becomes
         (favoring the nearest exit)
 
@@ -295,7 +295,7 @@ def get_nearest_exit_id(
         Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
     """
     distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
-    probabilities = 1 / (np.array(distances) + 1e-6) ** determinism_strength
+    probabilities = 1 / (np.array(distances) + 1e-6) ** exit_choice_exponent
     probabilities /= probabilities.sum()  # Normalize
     selected_exit_id = rng.choice(exit_ids, p=probabilities)
     selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]

@@ -26,7 +26,7 @@ Scripts without input compute the figure analytically from the model equations.
 | `sqlite_to_jpsvis.py` | Convert a trajectory sqlite file for JPSvis | no |
 | `plot_shielding_effect.py` | Crowding factor c(s, alpha) vs local density and alpha, `shielding_effect.pdf` | candidate for the revision |
 | `plot_hazard_calibration.py` | Survival of a stationary agent over the event vs distance from the firing line for several tau_line, `hazard_calibration.pdf` | calibration of tau_line; candidate for Methods or supplement |
-| `plot_exit_model.py` | Movement rules: map of P(nearest opening) for beta, holding time vs kappa, cumulative exit capacity vs crowd size; `exit_choice_map.pdf`, `exit_persistence.pdf`, `exit_capacity.pdf` | candidates for Methods |
+| `plot_exit_model.py` | Movement rules: map of P(nearest opening) for beta, holding time vs kappa; `exit_choice_map.pdf`, `exit_persistence.pdf` | candidates for Methods |
 | `plot_utils.py` | Shared loading of the sweep pickle and the walkable area | helper |
 
 Untracked exploratory scripts (`plot_N_Fallen.py`, `plot_causality.py`, `plot_damping_factor.py`,

@@ -18,8 +18,8 @@
     "time_scale": 600,
     "update_time": 10,
     "v0_max": 3.0,
-    "_comment_exits": "Exit choice: P_i ~ (d_i)^-beta (beta = determinism_strength_exits); each update an agent keeps its target with probability kappa. Each opening passes at most exit_flow_rate * exit_width * update_time agents per update.",
-    "determinism_strength_exits": 1.0,
+    "_comment_exits": "Exit choice: P_i ~ (d_i)^-beta (beta = exit_choice_exponent, fixed at 1); each update an agent keeps its target with probability kappa. Each opening passes at most exit_flow_rate * exit_width * update_time agents per update.",
+    "exit_choice_exponent": 1.0,
     "kappa_list": [
         0.5,
         0.9
