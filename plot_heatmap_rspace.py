@@ -39,7 +39,7 @@ walkable_area = setup_geometry()[0]
 min_x, min_y, max_x, max_y = walkable_area.bounds
 shooters = shooter_positions(firing_line, n_shooters)
 
-nx = ny = 500
+nx = ny = 1000
 x = np.linspace(min_x, max_x, nx)
 y = np.linspace(min_y, max_y, ny)
 X, Y = np.meshgrid(x, y)
@@ -72,6 +72,7 @@ for t in times:
         origin="lower",
         extent=(min_x, max_x, min_y, max_y),
         cmap="inferno",
+        interpolation="bilinear",
         vmin=p_min,
         vmax=p_max,
     )
