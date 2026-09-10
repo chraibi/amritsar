@@ -98,8 +98,11 @@ for t in times:
         ax.plot(x_hole, y_hole, color="black", linewidth=1)
     ax.plot(shooters[:, 0], shooters[:, 1], "w.", markersize=3, label="firing line")
     cs = ax.contour(X, Y, Z, levels=[contour_level], colors="white", linewidths=2, linestyles="--")
-    ax.clabel(
-        cs, fmt=lambda v: f"p = {v:.1f}", fontsize=fs - 4, colors="white", rightside_up=True
+    # Label the contour with horizontal text just right of its easternmost point
+    cx, cy = max(cs.allsegs[0], key=len).T
+    ax.text(
+        cx.max() + 3, cy[cx.argmax()], f"p = {contour_level:.1f}",
+        color="white", fontsize=fs - 4, ha="left", va="center",
     )
 
     fig.tight_layout()
