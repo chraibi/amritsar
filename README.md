@@ -71,6 +71,7 @@ The simulation is controlled through a `config.json` file.
 | `sigma` | float | Space factor parameter in meters | 20 |
 | **Model Constants** | | | |
 | `dt` | float | Simulation time step (s) | 0.01 |
+| `trajectory_every_nth_frame` | int | Frames between trajectory writes (100 = 1 frame/s) | 100 |
 | `agent_radius` | float | Agent body radius (m) | 0.15 |
 | `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
 | `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |

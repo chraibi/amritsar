@@ -68,7 +68,8 @@ def setup_simulation(params, rng):
     trajectory_file = params["trajectory_file"]
     exit_areas = params["exit_areas"]
     trajectory_writer = jps.SqliteTrajectoryWriter(
-        output_file=pathlib.Path(trajectory_file)
+        output_file=pathlib.Path(trajectory_file),
+        every_nth_frame=params["trajectory_every_nth_frame"],
     )
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),

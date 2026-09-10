@@ -389,6 +389,8 @@ def init_params(
         "LAMBDA_VARIATION": config["LAMBDA_VARIATION"],  # Variation in lambda values
         # ============================= MODEL CONSTANTS =============
         "dt": config.get("dt", 0.01),  # Simulation time step (s)
+        # Write every n-th frame to the sqlite trajectory (100 = one frame per second at dt = 0.01)
+        "trajectory_every_nth_frame": config.get("trajectory_every_nth_frame", 100),
         "agent_radius": config.get("agent_radius", 0.15),  # m
         "v0_std": config.get("v0_std", 0.05),  # Std of desired speed distribution (m/s)
         "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
