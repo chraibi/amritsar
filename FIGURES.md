@@ -25,8 +25,9 @@ Scripts without input compute the figure analytically from the model equations.
 | `heatmap.py` + `make_heatmap.sh` | Frame sequence and video of the survival heatmap | no |
 | `analysis.py` | Aggregate `fallen_agents_stats*.txt` files | no |
 | `sqlite_to_jpsvis.py` | Convert a trajectory sqlite file for JPSvis | no |
+| `plot_shielding_effect.py` | Collapse probability vs local density and alpha (Eq. collapse), `shielding_effect.pdf` | candidate for the revision |
 | `plot_utils.py` | Shared loading of the sweep pickle and the walkable area | helper |
 
 Untracked exploratory scripts (`plot_N_Fallen.py`, `plot_causality.py`, `plot_damping_factor.py`,
-`plot_rspace.py`, `plot_shielding.py`, `plot_survival_alpha.py`, `rspace_heatmap.py`) are not used
+`plot_rspace.py`, `plot_survival_alpha.py`, `rspace_heatmap.py`) are not used
 for any article figure.
