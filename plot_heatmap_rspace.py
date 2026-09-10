@@ -1,8 +1,10 @@
-"""Plot the collapse hazard field P(x, t) per update at t = 0 and t = T, using utils.py.
+"""Plot the collapse hazard field P(x) per update, using the model in utils.py.
 
 Usage: python plot_heatmap_rspace.py [config.json]
 Parameters (sigma, lambda, tau_line, firing line, n_shooters) are read from the
 sweep configuration so the figure matches the simulations. Crowding factor c = 1.
+One panel per entry of `times`; with lambda = 0 the field is stationary and a
+single panel (t = 0) is drawn.
 """
 
 import json
@@ -26,7 +28,7 @@ firing_line = tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]])))
 n_shooters = config.get("n_shooters", 50)
 tau_line, update_time = config["tau_line"], config["update_time"]
 gamma = config["gamma"]
-times = [0, time_scale]
+times = [0] if lambda_decay == 0 else [0, time_scale]
 p_max = update_time / tau_line * (1 + lambda_decay)  # hazard on the line at t = T
 p_min = 0.0
 contour_level = 0.5 * update_time / tau_line
@@ -70,7 +72,8 @@ for t in times:
     cbar.set_ticks([p_min, contour_level, p_max])
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
 
-    ax.set_title(f"time = {t} s", fontsize=fs)
+    if lambda_decay != 0:
+        ax.set_title(f"time = {t} s", fontsize=fs)
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
     ax.tick_params(labelsize=fs)
@@ -92,6 +95,7 @@ for t in times:
     )
 
     fig.tight_layout()
-    fig.savefig(f"rspace_at_time_{t}.pdf", bbox_inches="tight")
+    out = "hazard_field.pdf" if lambda_decay == 0 else f"rspace_at_time_{t}.pdf"
+    fig.savefig(out, bbox_inches="tight")
     plt.close(fig)
-    print(f"rspace_at_time_{t}.pdf")
+    print(out)

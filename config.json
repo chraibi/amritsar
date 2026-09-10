@@ -6,7 +6,7 @@
         15000
     ],
     "lambda_decay_list": [
-        0.2
+        0.0
     ],
     "alpha_list": [
         0.3,
@@ -25,7 +25,7 @@
     "wp_radius": 10,
     "radius_around": 1.5,
     "n_max": 12,
-    "LAMBDA_VARIATION": 0.1,
+    "LAMBDA_VARIATION": 0.0,
     "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
     "_comment_model": "'hazard': P = h r_space(x) r_time(t) c(s,alpha) per update, h = update_time/tau_line, r_time = 1 + lambda t/T, c = 1 - gamma(2alpha-1)(2s-1). 'legacy': survival form of the submitted manuscript (uses p_min, p_max, survival_noise, crowding_model).",
     "model": "hazard",
