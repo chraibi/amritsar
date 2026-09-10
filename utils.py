@@ -1,5 +1,6 @@
 """Utility functions for running main.py."""
 
+import functools
 import pathlib
 
 import jupedsim as jps
@@ -151,13 +152,31 @@ def adjusted_probability(base_prob, shielding, gamma, alpha):
     return min(adjusted_prob, 1.0)  # clamp to 1.0
 
 
-def compute_max_risk(xmin, ymin, ymax, sigma, n_shooters):
-    y_center = 0.5 * (ymin + ymax)
-    shooter_ys = np.linspace(ymin, ymax, n_shooters)
-    risk = sum(
-        1 / (1 + ((0) ** 2 + (y_center - y) ** 2) / sigma**2) for y in shooter_ys
-    )
-    return risk
+def shooter_positions(firing_line, n_shooters):
+    """Return n_shooters points evenly spaced along the firing line segment.
+
+    firing_line: ((x0, y0), (x1, y1)) endpoints in simulation coordinates.
+    """
+    (x0, y0), (x1, y1) = firing_line
+    t = np.linspace(0.0, 1.0, n_shooters)
+    return np.column_stack((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
+
+
+def exposure_risk(x, y, shooters, sigma):
+    """Sum of Lorentzian kernels from all shooter positions (Eq. rawrisk)."""
+    dx = x - shooters[:, 0]
+    dy = y - shooters[:, 1]
+    return float(np.sum(1.0 / (1.0 + (dx**2 + dy**2) / sigma**2)))
+
+
+@functools.cache
+def compute_max_risk(firing_line, sigma, n_shooters):
+    """Largest exposure risk, attained on the firing line near its midpoint.
+
+    Cached: firing_line must be a tuple of two (x, y) tuples.
+    """
+    shooters = shooter_positions(firing_line, n_shooters)
+    return max(exposure_risk(x, y, shooters, sigma) for x, y in shooters)
 
 
 def calculate_probability(
@@ -165,7 +184,7 @@ def calculate_probability(
     time_elapsed,
     lambda_decay,
     time_scale,
-    walkable_area,
+    firing_line,
     shielding,
     gamma,
     alpha,
@@ -176,25 +195,16 @@ def calculate_probability(
     n_shooters=50,
     survival_noise=0.05,
 ):
-    """Calculate the probability of survival for an agent using spatial exposure model."""
+    """Calculate the probability of survival for an agent using spatial exposure model.
 
-    # Spatial bounds
-    min_x, min_y, max_x, max_y = walkable_area.bounds
+    firing_line: ((x0, y0), (x1, y1)) segment along which the shooters stand.
+    """
+    shooters = shooter_positions(firing_line, n_shooters)
+    risk = exposure_risk(point.x, point.y, shooters, sigma)
 
-    # Shooter line along x = min_x from min_y to max_y
-    shooter_ys = np.linspace(min_y, max_y, n_shooters)
-
-    # Compute exposure risk from all shooter positions
-    risk = 0
-    # calculate may risk of exposure based on distance to shooters
-    for shooter_y in shooter_ys:
-        dx = point.x - min_x
-        dy = point.y - shooter_y
-        risk += 1 / (1 + (dx**2 + dy**2) / sigma**2)
-
-    # Normalize risk by maximum possible value (i.e. at min_x, shooter_y=center)
-    max_risk = compute_max_risk(min_x, min_y, max_y, sigma, n_shooters)
-    risk_norm = risk / max_risk
+    # Normalize by the maximum possible value (at the midpoint of the firing line)
+    max_risk = compute_max_risk(firing_line, sigma, n_shooters)
+    risk_norm = min(risk / max_risk, 1.0)
 
     # Convert to survival probability in [p_min, p_max]
     base_survival_prob = p_min + (1 - risk_norm) * (p_max - p_min)

@@ -73,7 +73,8 @@ The simulation is controlled through a `config.json` file.
 | `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
 | `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |
 | `distance_to_polygon` | float | Minimum initial distance to walls (m) | 0.5 |
-| `n_shooters` | int | Shooter positions along the firing line | 50 |
+| `firing_line` | list | Endpoints [[x0, y0], [x1, y1]] of the shooters' line (m), from Wagner's map | [[12, 11], [38, 90]] |
+| `n_shooters` | int | Shooter positions evenly spaced along the firing line | 50 |
 | `p_min`, `p_max` | float | Bounds of the per-update survival probability | 0.05, 0.95 |
 | `survival_noise` | float | Relative noise applied to the survival probability | 0.05 |
 

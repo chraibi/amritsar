@@ -27,6 +27,17 @@
     "n_max": 12,
     "LAMBDA_VARIATION": 0.1,
     "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
+    "_comment_firing_line": "Endpoints of the shooters' line in simulation coordinates (m), following the firing line on Wagner's map",
+    "firing_line": [
+        [
+            12,
+            11
+        ],
+        [
+            38,
+            90
+        ]
+    ],
     "dt": 0.01,
     "agent_radius": 0.15,
     "v0_std": 0.05,

@@ -9,8 +9,12 @@ from utils import (
     adjusted_probability,
     calculate_probability,
     compute_max_risk,
+    exposure_risk,
     get_nearest_exit_id,
+    shooter_positions,
 )
+
+LINE = ((12.0, 11.0), (38.0, 90.0))
 
 
 class ConstantRng:
@@ -18,11 +22,6 @@ class ConstantRng:
 
     def uniform(self, low, high):
         return 1.0
-
-
-@pytest.fixture
-def area():
-    return Polygon([(0, 0), (200, 0), (200, 100), (0, 100)])
 
 
 def test_adjusted_probability_shielding_and_targeting():
@@ -38,28 +37,35 @@ def test_adjusted_probability_is_clamped():
     assert adjusted_probability(0.9, shielding=1, gamma=0.8, alpha=1.0) == 1.0
 
 
-def test_compute_max_risk_matches_direct_sum():
+def test_shooter_positions_span_the_segment():
+    s = shooter_positions(LINE, 50)
+    assert s.shape == (50, 2)
+    assert tuple(s[0]) == LINE[0] and tuple(s[-1]) == LINE[1]
+    spacing = np.linalg.norm(np.diff(s, axis=0), axis=1)
+    assert np.allclose(spacing, spacing[0])
+
+
+def test_compute_max_risk_is_the_maximum_along_the_line():
     sigma, n = 30, 50
-    ymin, ymax = -7.66, 133.381
-    ys = np.linspace(ymin, ymax, n)
-    yc = 0.5 * (ymin + ymax)
-    expected = sum(1 / (1 + (yc - y) ** 2 / sigma**2) for y in ys)
-    assert compute_max_risk(0, ymin, ymax, sigma, n) == pytest.approx(expected)
+    shooters = shooter_positions(LINE, n)
+    along = [exposure_risk(x, y, shooters, sigma) for x, y in shooters]
+    assert compute_max_risk(LINE, sigma, n) == pytest.approx(max(along))
 
 
-def test_survival_reaches_p_min_at_shooting_line(area):
-    _, ymin, _, ymax = area.bounds
+def test_survival_reaches_p_min_on_the_firing_line():
+    shooters = shooter_positions(LINE, 50)
+    x, y = shooters[len(shooters) // 2]
     p = calculate_probability(
-        Point(0, 0.5 * (ymin + ymax)), 0, 0.3, 600, area,
+        Point(x, y), 0, 0.3, 600, LINE,
         shielding=0, gamma=0, alpha=0, rng=ConstantRng(), sigma=30,
     )
     assert p == pytest.approx(0.05)
 
 
-def test_survival_increases_with_distance_and_decays_with_time(area):
-    kw = dict(lambda_decay=0.3, time_scale=600, walkable_area=area,
+def test_survival_increases_with_distance_and_decays_with_time():
+    kw = dict(lambda_decay=0.3, time_scale=600, firing_line=LINE,
               shielding=0, gamma=0, alpha=0, rng=ConstantRng(), sigma=30)
-    near = calculate_probability(Point(5, 50), 0, **kw)
+    near = calculate_probability(Point(40, 50), 0, **kw)
     far = calculate_probability(Point(150, 50), 0, **kw)
     later = calculate_probability(Point(150, 50), 300, **kw)
     assert near < far

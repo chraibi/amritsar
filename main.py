@@ -103,8 +103,6 @@ def run_evacuation_simulation(params):
     fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
     last_update_time = -update_time
-    wa = params["walkable_area"]
-    min_x, min_y, max_x, max_y = wa.bounds
     # Assign individual decay rates to agents
     lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
@@ -132,14 +130,11 @@ def run_evacuation_simulation(params):
                     time_scale=time_scale,
                     elapsed_time=elapsed_time,
                     rng=rng,
-                    min_x=min_x,
-                    min_y=min_y,
                     sigma=sigma,
                     gamma=gamma,
                     alpha=alpha,
                     radius_around=params["radius_around"],
                     n_max=params["n_max"],
-                    walkable_area=wa,
                     model_constants=params["model_constants"],
                 )
             )
@@ -200,14 +195,11 @@ def update_agent_statuses(
     agent_lambdas,
     time_scale,
     rng,
-    min_x,
-    min_y,
     sigma,
     gamma,
     alpha,
     radius_around,
     n_max,
-    walkable_area,
     model_constants,
 ):
     """Update agent stamina and handle fallen agents."""
@@ -228,7 +220,7 @@ def update_agent_statuses(
             elapsed_time,
             agent_lambdas[agent_id],
             time_scale,
-            walkable_area,
+            model_constants["firing_line"],
             shielding=shielding,
             gamma=gamma,
             alpha=alpha,
@@ -362,6 +354,8 @@ def init_params(
         "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
         "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
         "model_constants": {
+            # Firing line endpoints (m); default follows the line drawn on Wagner's map
+            "firing_line": tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]]))),
             "n_shooters": config.get("n_shooters", 50),  # Shooter positions along the firing line
             "p_min": config.get("p_min", 0.05),  # Survival probability bounds per update
             "p_max": config.get("p_max", 0.95),

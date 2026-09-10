@@ -13,7 +13,7 @@ Scripts without input compute the figure analytically from the model equations.
 | `massacre_art.jpg` | none | external artwork | |
 | `exit_probability.pdf` | `plot_exit_probabilities.py` | none | Exit selection probability vs distance for beta = 0.1, 1.0 |
 | `heatmap_lambda_{0.5,1.0,2.0}.pdf` | `plot_heatmap_once.py` | none | Survival probability over distance and time; lambda values set in the script |
-| `rspace_at_time_{0,200,400,600}.pdf` | `plot_heatmap_rspace.py` | `Jaleanwala_Bagh.xml` | Spatial survival factor at four times |
+| `rspace_at_time_{0,200,400,600}.pdf` | `plot_heatmap_rspace.py` | `config.json` | Survival field p(x,t) without noise or shielding, computed with `utils.calculate_probability` and the sweep parameters; firing line drawn as white dots. The submitted figures were made with a separate copy of the model (sigma=40, lambda=0.5). |
 | `sweep_simulation_data_20250707_224324_causality_lambda_0.2_N_{5000,10000,15000}.pdf` | `plot_causality_heatmap.py` | reference pickle | **alpha = 0.7.** The script used to write one file per (N, lambda) and the alpha = 0.7 run overwrote alpha = 0.3. Output names now include `_alpha_<value>`; the article figures are pixel-identical to the `alpha_0.7` outputs. |
 | `sweep_simulation_data_20250707_224324_enhanced_fallen_time_series_N{5000,10000,15000}_alpha.pdf` | `plot_cumulative_fallen_agents_time_alpha.py` | reference pickle | Cumulative fallen agents over time, both alpha values, lambda fixed |
 
