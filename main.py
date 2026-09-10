@@ -19,6 +19,7 @@ import logging
 
 from utils import (
     calculate_probability,
+    collapse_hazard,
     collapse_probability,
     configure_logging,
     convert_seconds_to_hms,
@@ -215,24 +216,37 @@ def update_agent_statuses(
         )
         shielding = min(1.0, len(neighbors) / n_max)
 
-        # Exposure survival p(x, t), then the crowding term (Eq. collapse)
-        survival_prob = calculate_probability(
-            Point(agent.position),
-            elapsed_time,
-            agent_lambdas[agent_id],
-            time_scale,
-            model_constants["firing_line"],
-            sigma=sigma,
-            rng=rng,
-            p_min=model_constants["p_min"],
-            p_max=model_constants["p_max"],
-            n_shooters=model_constants["n_shooters"],
-            survival_noise=model_constants["survival_noise"],
-        )
-
         if initial_v0 == 0:
             p_collapse = 1.0
-        else:
+        elif model_constants["model"] == "hazard":
+            p_collapse = collapse_hazard(
+                Point(agent.position),
+                elapsed_time,
+                shielding,
+                lambda_growth=agent_lambdas[agent_id],
+                time_scale=time_scale,
+                firing_line=model_constants["firing_line"],
+                sigma=sigma,
+                gamma=gamma,
+                alpha=alpha,
+                tau_line=model_constants["tau_line"],
+                update_time=model_constants["update_time"],
+                n_shooters=model_constants["n_shooters"],
+            )
+        else:  # legacy: exposure survival p(x, t), then the crowding term
+            survival_prob = calculate_probability(
+                Point(agent.position),
+                elapsed_time,
+                agent_lambdas[agent_id],
+                time_scale,
+                model_constants["firing_line"],
+                sigma=sigma,
+                rng=rng,
+                p_min=model_constants["p_min"],
+                p_max=model_constants["p_max"],
+                n_shooters=model_constants["n_shooters"],
+                survival_noise=model_constants["survival_noise"],
+            )
             p_collapse = collapse_probability(
                 survival_prob,
                 shielding,
@@ -358,8 +372,12 @@ def init_params(
         "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
         "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
         "model_constants": {
-            # "risk": symmetric risk scaling (Eq. collapse); "survival": form of the submitted paper
-            "crowding_model": config.get("crowding_model", "risk"),
+            # "hazard": P = h r_space r_time c (default); "legacy": survival form of the submission
+            "model": config.get("model", "hazard"),
+            "tau_line": config.get("tau_line", 60.0),  # mean time to collapse on the firing line (s)
+            "update_time": update_time,
+            # legacy only: "risk" symmetric crowding or "survival" form of the submitted paper
+            "crowding_model": config.get("crowding_model", "survival"),
             # Firing line endpoints (m); default follows the line drawn on Wagner's map
             "firing_line": tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]]))),
             "n_shooters": config.get("n_shooters", 50),  # Shooter positions along the firing line

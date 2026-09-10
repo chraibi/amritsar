@@ -13,7 +13,7 @@ Scripts without input compute the figure analytically from the model equations.
 | `massacre_art.jpg` | none | external artwork | |
 | `exit_probability.pdf` | `plot_exit_probabilities.py` | none | Exit selection probability vs distance for beta = 0.1, 1.0 |
 | `heatmap_lambda_{0.5,1.0,2.0}.pdf` | `plot_heatmap_once.py` | none | Survival probability over distance and time; lambda values set in the script |
-| `rspace_at_time_{0,200,400,600}.pdf` | `plot_heatmap_rspace.py` | `config.json` | Survival field p(x,t) without noise or shielding, computed with `utils.calculate_probability` and the sweep parameters; firing line drawn as white dots. The submitted figures were made with a separate copy of the model (sigma=40, lambda=0.5). |
+| `rspace_at_time_{0,600}.pdf` | `plot_heatmap_rspace.py` | `config.json` | Collapse hazard per update P(x,t) at c = 1 (hazard model), sweep parameters, firing line as dots, contour at half the on-line hazard. The submitted four-panel figure was made with a separate copy of the legacy survival model (sigma=40, lambda=0.5). |
 | `sweep_simulation_data_20250707_224324_causality_lambda_0.2_N_{5000,10000,15000}.pdf` | `plot_causality_heatmap.py` | reference pickle | **alpha = 0.7.** The script used to write one file per (N, lambda) and the alpha = 0.7 run overwrote alpha = 0.3. Output names now include `_alpha_<value>`; the article figures are pixel-identical to the `alpha_0.7` outputs. |
 | `sweep_simulation_data_20250707_224324_enhanced_fallen_time_series_N{5000,10000,15000}_alpha.pdf` | `plot_cumulative_fallen_agents_time_alpha.py` | reference pickle | Cumulative fallen agents over time, both alpha values, lambda fixed |
 
@@ -25,7 +25,8 @@ Scripts without input compute the figure analytically from the model equations.
 | `heatmap.py` + `make_heatmap.sh` | Frame sequence and video of the survival heatmap | no |
 | `analysis.py` | Aggregate `fallen_agents_stats*.txt` files | no |
 | `sqlite_to_jpsvis.py` | Convert a trajectory sqlite file for JPSvis | no |
-| `plot_shielding_effect.py` | Collapse probability vs local density and alpha (Eq. collapse), `shielding_effect.pdf` | candidate for the revision |
+| `plot_shielding_effect.py` | Crowding factor c(s, alpha) vs local density and alpha, `shielding_effect.pdf` | candidate for the revision |
+| `plot_hazard_calibration.py` | Survival of a stationary agent over the event vs distance from the firing line for several tau_line, `hazard_calibration.pdf` | calibration of tau_line; candidate for Methods or supplement |
 | `plot_utils.py` | Shared loading of the sweep pickle and the walkable area | helper |
 
 Untracked exploratory scripts (`plot_N_Fallen.py`, `plot_causality.py`, `plot_damping_factor.py`,

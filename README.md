@@ -73,7 +73,9 @@ The simulation is controlled through a `config.json` file.
 | `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
 | `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |
 | `distance_to_polygon` | float | Minimum initial distance to walls (m) | 0.5 |
-| `crowding_model` | str | `risk`: P = (1-p)(1 - γ(2α-1)(2s-1)); `survival`: form of the submitted paper | risk |
+| `model` | str | `hazard`: P = h·r_space·r_time·c per update (default); `legacy`: survival form of the submitted paper | hazard |
+| `tau_line` | float | Mean time to collapse of an agent on the firing line (s); h = update_time / tau_line | 60 |
+| `crowding_model` | str | legacy model only: `survival` (submitted form) or `risk` | survival |
 | `firing_line` | list | Endpoints [[x0, y0], [x1, y1]] of the shooters' line (m), from Wagner's map | [[12, 11], [38, 90]] |
 | `n_shooters` | int | Shooter positions evenly spaced along the firing line | 50 |
 | `p_min`, `p_max` | float | Bounds of the per-update survival probability | 0.05, 0.95 |
@@ -104,7 +106,7 @@ python main.py
 
 ### Key Parameters Explained
 
-- **λ (lambda_decay)**: Controls the rate of agent stamina decay over time. Higher values mean faster deterioration.
+- **λ (lambda_decay)**: Growth of the collapse hazard with exposure time, r_time = 1 + λ t/T (hazard model); decay rate of the survival probability in the legacy model.
 - **α (alpha)**: Shielding effectiveness parameter. 1.0 = full physical shielding, 0.0 = targeted effects.
 - **γ (gamma)**: Decay rate for shielding effectiveness.
 - **σ (sigma)**: Spatial factor affecting survival probability.

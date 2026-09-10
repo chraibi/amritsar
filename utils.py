@@ -139,6 +139,50 @@ def distribute_agents(
     return pos_in_spawning_area
 
 
+def exposure_factor(point, firing_line, sigma, n_shooters):
+    """Normalised spatial exposure r_space(x) = R(x) / R_max in [0, 1]."""
+    shooters = shooter_positions(firing_line, n_shooters)
+    risk = exposure_risk(point.x, point.y, shooters, sigma)
+    return min(risk / compute_max_risk(firing_line, sigma, n_shooters), 1.0)
+
+
+def crowding_factor(shielding, gamma, alpha):
+    """c(s, alpha) = 1 - gamma (2 alpha - 1)(2 s - 1), in [1 - gamma, 1 + gamma].
+
+    alpha = 1: dense agents are protected, isolated ones exposed;
+    alpha = 0: dense clusters are targeted; alpha = 0.5: no effect.
+    """
+    return 1.0 - gamma * (2.0 * alpha - 1.0) * (2.0 * shielding - 1.0)
+
+
+def collapse_hazard(
+    point,
+    time_elapsed,
+    shielding,
+    lambda_growth,
+    time_scale,
+    firing_line,
+    sigma,
+    gamma,
+    alpha,
+    tau_line,
+    update_time,
+    n_shooters=50,
+):
+    """Collapse probability per update (hazard model).
+
+    P = h * r_space(x) * r_time(t) * c(s, alpha), capped at 1, with
+    h = update_time / tau_line the per-update collapse probability on the firing
+    line (tau_line: mean time to collapse there), r_time = 1 + lambda t / T the
+    growth of risk with exposure time, and c the crowding factor.
+    """
+    h = update_time / tau_line
+    r_space = exposure_factor(point, firing_line, sigma, n_shooters)
+    r_time = 1.0 + lambda_growth * time_elapsed / time_scale
+    hazard = h * r_space * r_time * crowding_factor(shielding, gamma, alpha)
+    return float(min(hazard, 1.0))
+
+
 def collapse_probability(survival, shielding, gamma, alpha, crowding_model="risk"):
     """Collapse probability from the exposure survival p(x,t) and the local crowding.
 
@@ -156,7 +200,7 @@ def collapse_probability(survival, shielding, gamma, alpha, crowding_model="risk
         the plain exposure risk 1 - p and never more.
     """
     if crowding_model == "risk":
-        factor = 1.0 - gamma * (2.0 * alpha - 1.0) * (2.0 * shielding - 1.0)
+        factor = crowding_factor(shielding, gamma, alpha)
         return float(np.clip((1.0 - survival) * factor, 0.0, 1.0))
     if crowding_model == "survival":
         hybrid_factor = alpha * shielding + (1.0 - alpha) * (1.0 - shielding)
@@ -204,17 +248,12 @@ def calculate_probability(
     n_shooters=50,
     survival_noise=0.05,
 ):
-    """Exposure survival probability p(x, t) = r_space(x) * r_time(t), without crowding.
+    """Legacy exposure survival p(x, t) = r_space(x) * r_time(t) of the submitted manuscript.
 
     firing_line: ((x0, y0), (x1, y1)) segment along which the shooters stand.
     Combine with collapse_probability() to obtain the collapse probability.
     """
-    shooters = shooter_positions(firing_line, n_shooters)
-    risk = exposure_risk(point.x, point.y, shooters, sigma)
-
-    # Normalize by the maximum possible value (at the midpoint of the firing line)
-    max_risk = compute_max_risk(firing_line, sigma, n_shooters)
-    risk_norm = min(risk / max_risk, 1.0)
+    risk_norm = exposure_factor(point, firing_line, sigma, n_shooters)
 
     # Convert to survival probability in [p_min, p_max]
     base_survival_prob = p_min + (1 - risk_norm) * (p_max - p_min)

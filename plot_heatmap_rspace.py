@@ -1,8 +1,8 @@
-"""Plot the survival probability field p(x, t) at several times, using the model in utils.py.
+"""Plot the collapse hazard field P(x, t) per update at t = 0 and t = T, using utils.py.
 
 Usage: python plot_heatmap_rspace.py [config.json]
-Parameters (sigma, lambda, firing line, p_min/p_max, n_shooters) are read from the
-sweep configuration so the figure matches the simulations.
+Parameters (sigma, lambda, tau_line, firing line, n_shooters) are read from the
+sweep configuration so the figure matches the simulations. Crowding factor c = 1.
 """
 
 import json
@@ -13,16 +13,7 @@ import numpy as np
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from shapely import Point
 
-from utils import calculate_probability, setup_geometry, shooter_positions
-
-
-class NoNoise:
-    """Replaces the rng so the field is drawn without the multiplicative noise."""
-
-    # calculate_probability returns p(x, t) before the crowding term
-
-    def uniform(self, low, high):
-        return 1.0
+from utils import collapse_hazard, setup_geometry, shooter_positions
 
 
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
@@ -33,15 +24,18 @@ lambda_decay = config["lambda_decay_list"][0]
 time_scale = config["time_scale"]
 firing_line = tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]])))
 n_shooters = config.get("n_shooters", 50)
-p_min, p_max = config.get("p_min", 0.05), config.get("p_max", 0.95)
-times = [0, 600]
-contour_level = 0.5
+tau_line, update_time = config["tau_line"], config["update_time"]
+gamma = config["gamma"]
+times = [0, time_scale]
+p_max = update_time / tau_line * (1 + lambda_decay)  # hazard on the line at t = T
+p_min = 0.0
+contour_level = 0.5 * update_time / tau_line
 
 walkable_area = setup_geometry()[0]
 min_x, min_y, max_x, max_y = walkable_area.bounds
 shooters = shooter_positions(firing_line, n_shooters)
 
-nx = ny = 1000
+nx = ny = 400
 x = np.linspace(min_x, max_x, nx)
 y = np.linspace(min_y, max_y, ny)
 X, Y = np.meshgrid(x, y)
@@ -53,24 +47,16 @@ for t in times:
             pt = Point(X[i, j], Y[i, j])
             if not walkable_area.contains(pt):
                 continue
-            Z[i, j] = calculate_probability(
-                point=pt,
-                time_elapsed=t,
-                lambda_decay=lambda_decay,
-                time_scale=time_scale,
-                firing_line=firing_line,
-                rng=NoNoise(),
-                sigma=sigma,
-                p_min=p_min,
-                p_max=p_max,
-                n_shooters=n_shooters,
+            Z[i, j] = collapse_hazard(
+                pt, t, 0.5, lambda_decay, time_scale, firing_line, sigma, gamma, 0.5,
+                tau_line, update_time, n_shooters,
             )
     fig, ax = plt.subplots(figsize=(10, 10), dpi=600)
     im = ax.imshow(
         Z,
         origin="lower",
         extent=(min_x, max_x, min_y, max_y),
-        cmap="inferno",
+        cmap="inferno_r",
         interpolation="bilinear",
         vmin=p_min,
         vmax=p_max,
@@ -80,7 +66,7 @@ for t in times:
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=fs)
-    cbar.set_label("Survival Probability", fontsize=fs)
+    cbar.set_label(f"Collapse probability per {update_time} s", fontsize=fs)
     cbar.set_ticks([p_min, contour_level, p_max])
     cbar.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
 
@@ -96,13 +82,13 @@ for t in times:
     for interior in walkable_area.interiors:
         x_hole, y_hole = interior.xy
         ax.plot(x_hole, y_hole, color="black", linewidth=1)
-    ax.plot(shooters[:, 0], shooters[:, 1], "w.", markersize=3, label="firing line")
-    cs = ax.contour(X, Y, Z, levels=[contour_level], colors="white", linewidths=2, linestyles="--")
+    ax.plot(shooters[:, 0], shooters[:, 1], "k.", markersize=3, label="firing line")
+    cs = ax.contour(X, Y, Z, levels=[contour_level], colors="black", linewidths=2, linestyles="--")
     # Label the contour with horizontal text just right of its easternmost point
     cx, cy = max(cs.allsegs[0], key=len).T
     ax.text(
-        cx.max() + 3, cy[cx.argmax()], f"p = {contour_level:.1f}",
-        color="white", fontsize=fs - 4, ha="left", va="center",
+        cx.max() + 3, cy[cx.argmax()], f"P = {contour_level:.2f}",
+        color="black", fontsize=fs - 4, ha="left", va="center",
     )
 
     fig.tight_layout()

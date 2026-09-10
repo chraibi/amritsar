@@ -7,7 +7,10 @@ from shapely import Point, Polygon
 from main import generate_seeds
 from utils import (
     calculate_probability,
+    collapse_hazard,
     collapse_probability,
+    crowding_factor,
+    exposure_factor,
     compute_max_risk,
     exposure_risk,
     get_nearest_exit_id,
@@ -48,6 +51,36 @@ def test_collapse_probability_survival_model_matches_submitted_form():
     assert collapse_probability(p, 1, g, 1.0, "survival") == pytest.approx(0.1)
     assert collapse_probability(p, 1, g, 0.0, "survival") == pytest.approx(0.5)
     assert collapse_probability(0.9, 1, g, 1.0, "survival") == 0.0  # capped survival
+
+
+def test_exposure_factor_is_one_on_the_line_and_decays():
+    shooters = shooter_positions(LINE, 50)
+    x, y = shooters[25]
+    assert exposure_factor(Point(x, y), LINE, 30, 50) == pytest.approx(1.0, abs=1e-3)
+    near = exposure_factor(Point(45, 50), LINE, 30, 50)
+    far = exposure_factor(Point(180, 60), LINE, 30, 50)
+    assert 1 > near > far > 0
+
+
+def test_crowding_factor_limits():
+    g = 0.8
+    assert crowding_factor(1, g, 1.0) == pytest.approx(1 - g)
+    assert crowding_factor(0, g, 1.0) == pytest.approx(1 + g)
+    assert crowding_factor(1, g, 0.0) == pytest.approx(1 + g)
+    assert crowding_factor(0.5, g, 0.0) == pytest.approx(1.0)
+    assert crowding_factor(1, g, 0.5) == pytest.approx(1.0)
+
+
+def test_collapse_hazard_on_the_line_equals_baseline():
+    shooters = shooter_positions(LINE, 50)
+    x, y = shooters[25]
+    kw = dict(lambda_growth=0.0, time_scale=600, firing_line=LINE, sigma=30, gamma=0.8,
+              alpha=0.5, tau_line=60, update_time=10)
+    assert collapse_hazard(Point(x, y), 0, 0.5, **kw) == pytest.approx(10 / 60, abs=1e-3)
+    kw["lambda_growth"] = 0.5
+    assert collapse_hazard(Point(x, y), 600, 0.5, **kw) == pytest.approx(1.5 * 10 / 60, abs=1e-3)
+    kw["tau_line"] = 1.0
+    assert collapse_hazard(Point(x, y), 600, 0.5, **kw) == 1.0
 
 
 def test_collapse_probability_rejects_unknown_model():
