@@ -24,7 +24,8 @@ class NoNoise:
 
 
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
-config = json.load(open(config_file))
+with open(config_file) as f:
+    config = json.load(f)
 sigma = config["sigma"]
 lambda_decay = config["lambda_decay_list"][0]
 time_scale = config["time_scale"]
