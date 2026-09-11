@@ -1,8 +1,8 @@
 """Illustrate the dual role of crowding: the factor c(s, alpha) in the collapse hazard.
 
 Usage: python plot_shielding_effect.py [config.json]
-Left: crowding factor versus local density for several alpha.
-Right: the same over the (density, alpha) plane.
+Crowding factor versus local density for several alpha; each line is labelled at
+its right end.
 """
 
 import json
@@ -10,7 +10,6 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from utils import crowding_factor
 
@@ -32,41 +31,23 @@ def p_collapse(s, alpha):
 
 
 fs = 14
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+fig, ax1 = plt.subplots(figsize=(8, 5))
 
-# Left: curves per alpha
 styles = ["-", "--", "-.", ":", (0, (5, 1))]
 for alpha, ls in zip(alphas, styles, strict=True):
     y = [p_collapse(s, alpha) for s in shielding]
-    ax1.plot(density, y, ls=ls, lw=2, color="black", label=rf"$\alpha = {alpha:.1f}$")
+    ax1.plot(density, y, ls=ls, lw=2, color="black")
+    ax1.text(density[-1] + 0.05, y[-1], rf"$\alpha = {alpha:.1f}$", va="center", ha="left", fontsize=fs - 2)
 ax1.axhline(1.0, color="gray", lw=1, ls="-", alpha=0.5)
 ax1.axvline(n_max / area, color="gray", lw=1, ls=":")
-ax1.text(n_max / area, ax1.get_ylim()[1], r"$s = 1$", color="gray", ha="left", va="top", fontsize=fs - 2)
+ax1.text(n_max / area + 0.03, 1.55, r"$s = 1$", color="gray", ha="left", va="center", fontsize=fs - 2)
 ax1.set_xlabel(r"Local density $\rho$ [persons/m$^2$]", fontsize=fs)
 ax1.set_ylabel(r"Crowding factor $c(s, \alpha)$", fontsize=fs)
 ax1.tick_params(labelsize=fs - 2)
-ax1.legend(fontsize=fs - 2, frameon=False)
-ax1.set_xlim(density[0], density[-1])
-
-# Right: heatmap over (density, alpha)
-alpha_grid = np.linspace(0, 1, 201)
-Z = np.array([[p_collapse(s, a) for s in shielding] for a in alpha_grid])
-im = ax2.imshow(
-    Z,
-    origin="lower",
-    aspect="auto",
-    extent=(density[0], density[-1], 0, 1),
-    cmap="inferno_r",
-)
-ax2.contour(density, alpha_grid, Z, levels=[1.0], colors="white", linestyles="--")
-ax2.set_xlabel(r"Local density $\rho$ [persons/m$^2$]", fontsize=fs)
-ax2.set_ylabel(r"$\alpha$", fontsize=fs)
-ax2.tick_params(labelsize=fs - 2)
-divider = make_axes_locatable(ax2)
-cax = divider.append_axes("right", size="4%", pad=0.08)
-cbar = fig.colorbar(im, cax=cax)
-cbar.set_label(r"$c(s, \alpha)$", fontsize=fs)
-cbar.ax.tick_params(labelsize=fs - 2)
+ax1.set_xlim(density[0], density[-1] + 0.6)
+ax1.set_xticks(np.arange(0, density[-1] + 0.01, 0.5))
+ax1.spines["top"].set_visible(False)
+ax1.spines["right"].set_visible(False)
 
 fig.tight_layout()
 fig.savefig("shielding_effect.pdf", bbox_inches="tight")
