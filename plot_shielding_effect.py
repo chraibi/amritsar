@@ -37,8 +37,11 @@ styles = ["-", "--", "-.", ":", (0, (5, 1))]
 for alpha, ls in zip(alphas, styles, strict=True):
     y = [p_collapse(s, alpha) for s in shielding]
     ax1.plot(density, y, ls=ls, lw=2, color="black")
-    ax1.text(density[-1] + 0.05, y[-1], rf"$\alpha = {alpha:.1f}$", va="center", ha="left", fontsize=fs - 2)
-ax1.axhline(1.0, color="gray", lw=1, ls="-", alpha=0.5)
+    ax1.text(
+        density[-1] + 0.05, y[-1], rf"$\alpha = {alpha:.1f}$", va="center", ha="left",
+        fontsize=fs - 2, bbox=dict(facecolor="white", edgecolor="none", pad=1.5),
+    )
+ax1.plot([density[0], density[-1]], [1.0, 1.0], color="gray", lw=1, ls="-", alpha=0.5)
 ax1.axvline(n_max / area, color="gray", lw=1, ls=":")
 ax1.text(n_max / area + 0.03, 1.55, r"$s = 1$", color="gray", ha="left", va="center", fontsize=fs - 2)
 ax1.set_xlabel(r"Local density $\rho$ [persons/m$^2$]", fontsize=fs)
