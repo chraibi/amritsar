@@ -98,7 +98,7 @@ for s in $SWEEPS; do
             *"Simulation finished"*) done=$((done + 1)); echo "[$s] $done/$total runs done, $(elapsed) elapsed" ;;
             *Traceback*|*Error*|*"saved to"*) echo "$line" ;;
           esac
-        done; } || true
+        done; }
   echo "== $(date '+%F %T') [$s] finished ($(elapsed) elapsed)"
 done
 

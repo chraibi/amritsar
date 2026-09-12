@@ -58,7 +58,7 @@ for pkl in pickles:
                 "fallen_share": fallen.mean() / n,
                 "exited_mean": exited.mean(),
                 "inside_mean": inside.mean(),
-                "fallen_per_round": fallen.mean() / args.rounds,
+                "fallen_per_round": fallen.mean() / (cfg.get("rounds_fired") or args.rounds),
                 "exits_per_opening": exits.mean(axis=0).round(0).tolist() if exits.size else None,
             }
         )

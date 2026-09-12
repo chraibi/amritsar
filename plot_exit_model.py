@@ -22,7 +22,7 @@ beta = config["exit_choice_exponent"]
 kappas = config["kappa_list"]
 dt, T = config["update_time"], config["time_scale"]
 
-walkable_area, exit_areas, _ = setup_geometry()
+walkable_area, exit_areas, _ = setup_geometry(config.get("extra_exits", []))
 min_x, min_y, max_x, max_y = walkable_area.bounds
 fs = 14
 
@@ -72,6 +72,10 @@ ax.set_yscale("log")
 ax.set_ylim(dt, T)
 ax.grid(alpha=0.3, which="both")
 for k in kappas:
+    if k >= 1:  # never reconsiders: holding time is the whole event
+        ax.plot(k, T, "o", color="black", ms=8)
+        ax.annotate(r"$\kappa = 1$: keeps the first choice", (k, T), textcoords="offset points", xytext=(-10, -14), ha="right", fontsize=fs - 3)
+        continue
     ax.plot(k, dt / (1 - k), "o", color="black", ms=8)
     ax.annotate(
         rf"$\kappa = {k}$: {dt / (1 - k):.0f} s, ~{(T / dt) * (1 - k):.0f} changes in {T} s",

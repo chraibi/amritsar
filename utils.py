@@ -443,7 +443,7 @@ def save_simulation_results(
         # Data structure documentation
         "data_structure_info": {
             "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of evacuation times",
-            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of dead agent counts",
+            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of agents still inside at the end (collapsed or not exited); collapsed counts are the sums of fallen_time_series",
             "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing (time_series, fallen_counts) tuples",
             "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of fallen agent positions",
             "exited_per_exit": "Dictionary with the same keys containing, per run, the number of agents that left through each opening (order of exit_areas)",
@@ -479,7 +479,7 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
 
     for key, evac_list in evac_times.items():
         num_agents, lambda_decay, alpha, kappa = key
-        dead_list = dead[key]
+        dead_list = [sum(f) for f in fallen_time_series[key][1]]  # collapsed agents per run
 
         # Calculate statistics for this parameter combination
         param_stats = {

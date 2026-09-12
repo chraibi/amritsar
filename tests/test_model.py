@@ -185,3 +185,36 @@ def test_generate_seeds_is_reproducible_and_distinct():
     assert len(set(a)) == 5
     assert all(0 <= s < 2**32 for s in a)
     assert a != generate_seeds(4321, 5)
+
+
+def test_simulation_performs_exactly_time_scale_over_update_time_updates():
+    """The collapse and exit rules run at t = dt, 2dt, ..., T: no draw at t = 0."""
+    import json
+
+    import main
+    from utils import setup_geometry
+
+    with open("config.json") as f:
+        cfg = json.load(f)
+    cfg.update(time_scale=30, update_time=10, rounds_fired=0)  # no hits, so the loop runs to T
+    wa, ex, sp = setup_geometry()
+    p = main.init_params(30, 0.0, 1, 0.5, cfg["sigma"], cfg, wa, sp, ex, gamma=cfg["gamma"], seed=3, trajectory_dir=None)
+    r = main.run_evacuation_simulation(p)
+    assert [round(t) for t in r.time_series] == [10, 20, 30]
+    cfg["rounds_fired"] = 1650
+    p = main.init_params(30, 0.0, 1, 0.5, cfg["sigma"], cfg, wa, sp, ex, gamma=cfg["gamma"], seed=3, trajectory_dir=None)
+    assert p["model_constants"]["rounds_per_update"] * (30 / 10) == pytest.approx(1650)
+
+
+def test_init_params_rejects_unknown_model():
+    import json
+
+    import main
+    from utils import setup_geometry
+
+    with open("config.json") as f:
+        cfg = json.load(f)
+    cfg["model"] = "bullets"
+    wa, ex, sp = setup_geometry()
+    with pytest.raises(ValueError):
+        main.init_params(30, 0.0, 1, 0.5, cfg["sigma"], cfg, wa, sp, ex)

@@ -115,7 +115,7 @@ def run_evacuation_simulation(params):
     hits_without_target = 0
     fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
-    last_update_time = -update_time
+    last_update_time = 0.0  # first update at t = update_time, so exactly T/dt updates
     # Assign individual decay rates to agents
     lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
@@ -261,7 +261,7 @@ def update_agent_statuses(
                 update_time=model_constants["update_time"],
                 n_shooters=model_constants["n_shooters"],
             )
-        else:  # legacy: exposure survival p(x, t), then the crowding term
+        elif model_constants["model"] == "legacy":  # exposure survival p(x, t), then crowding
             survival_prob = calculate_probability(
                 Point(agent.position),
                 elapsed_time,
@@ -282,6 +282,8 @@ def update_agent_statuses(
                 alpha=alpha,
                 crowding_model=model_constants["crowding_model"],
             )
+        else:
+            raise ValueError(f"unknown model {model_constants['model']!r}")
         # Check if agent should fall
         rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
@@ -415,6 +417,9 @@ def init_params(
 
     trajectory_dir=None disables trajectory output.
     """
+    model = config.get("model", "rounds")
+    if model not in ("rounds", "hazard", "legacy"):
+        raise ValueError(f"config 'model' must be 'rounds', 'hazard' or 'legacy', got {model!r}")
     # ================================= MODEL PARAMETERS =========
     time_scale = config["time_scale"]  # in seconds = 10 min of shooting
     update_time = config["update_time"]  # in seconds
@@ -471,7 +476,7 @@ def init_params(
         "model_constants": {
             # "rounds": rounds-limited hits distributed by exposure and crowding (default);
             # "hazard": per-person hazard P = h r_space c; "legacy": survival form of the submission
-            "model": config.get("model", "rounds"),
+            "model": model,
             # rounds model: rounds fired over the event and people incapacitated per round
             "rounds_per_update": config.get("rounds_fired", 1650) / (time_scale / update_time),
             "hits_per_round": config.get("hits_per_round", 1.0),
