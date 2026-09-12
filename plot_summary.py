@@ -11,7 +11,6 @@ import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.lines import Line2D
 
 parser = argparse.ArgumentParser(description=__doc__)
