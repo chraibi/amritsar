@@ -113,6 +113,25 @@ A venv created with `uv` has no pip; `reproduce.sh` needs it to record the envir
 `uv pip install pip` once. Existing `results/<sweep>/*.pkl` files are skipped, so remove `results/`
 after a `--quick` test run or set `RESULTS=results_full`.
 
+### Running in batches
+
+The sweeps can be run in batches, on different machines or at different times, and
+merged afterwards. The results in the article were produced in two batches on the same
+server (commit recorded in `results/environment.txt`):
+
+```bash
+# batch 1: main results and the first sensitivity runs (126 runs)
+SWEEPS="main tau120 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
+# batch 2: further sensitivity runs (84 runs)
+SWEEPS="kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40" JOBS=64 ./reproduce.sh
+```
+
+Each batch writes `results/<sweep>/` for its sweeps and a `results.zip`. To merge, unzip both
+archives into one `results/` directory and run `./reproduce.sh` there: every sweep already has
+its pickle, so nothing is simulated and the figures, `report.md`, `report.csv` and
+`summary.pdf` are regenerated over all sweeps. Running `./reproduce.sh` with no `SWEEPS`
+on an empty directory produces the same result in one go.
+
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
 main results): `tau120` (lower-bound lethality), `open_gates_w3`, `open_gates_w4` (wider
 openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
