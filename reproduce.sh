@@ -14,6 +14,7 @@
 #   results/<sweep>/figures/                            time series and fatality maps
 #   results/model_figures/                              figures that illustrate the model
 #   results/report.md, results/report.csv               tables of all sweeps
+#   results/summary.pdf                                 all sweeps against the historical numbers
 #   results/environment.txt                             git commit, python, pip freeze
 #   results/traj/<sweep>/                               sqlite trajectories (main sweep only)
 #   results.zip                                         everything above except traj/ and the logs
@@ -115,8 +116,9 @@ MAIN_CONFIG="$(cd "$(dirname "$(config_path main)")" && pwd)/$(basename "$(confi
   && $PYTHON "$REPO/plot_shielding_effect.py" "$MAIN_CONFIG" \
   && $PYTHON "$REPO/plot_exit_model.py" "$MAIN_CONFIG" )
 
-# --- report
+# --- report and one-figure summary
 $PYTHON make_report.py "$RESULTS"
+$PYTHON plot_summary.py "$RESULTS"
 
 # --- archive (pickles, figures, report, environment; trajectories stay on disk)
 ZIP="${RESULTS%/}.zip"
