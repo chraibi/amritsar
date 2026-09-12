@@ -59,11 +59,12 @@ ax.grid(axis="x", alpha=0.3, which="both")
 
 ymax = len(groups) - 0.5
 ax.axvline(args.official, color="crimson", lw=1.5)
-ax.text(args.official, -0.8, f"official\n{args.official}", color="crimson", ha="center", va="bottom", fontsize=fs - 3)
+box = dict(facecolor="white", edgecolor="none", pad=1.5)
+ax.text(args.official / 1.06, -0.8, f"official\n{args.official}", color="crimson", ha="right", va="bottom", fontsize=fs - 3, bbox=box)
 ax.axvspan(args.estimates[0], args.estimates[1], color="tab:blue", alpha=0.15, lw=0)
-ax.text(np.sqrt(args.estimates[0] * args.estimates[1]) * 0.93, -0.8, f"Indian estimates\n{args.estimates[0]}–{args.estimates[1]}", color="tab:blue", ha="center", va="bottom", fontsize=fs - 3)
+ax.text(args.estimates[0] / 1.04, -0.8, f"Indian estimates\n{args.estimates[0]}–{args.estimates[1]}", color="tab:blue", ha="right", va="bottom", fontsize=fs - 3, bbox=box)
 ax.axvline(args.rounds, color="gray", lw=1.5, ls="--")
-ax.text(args.rounds * 1.06, -0.8, f"rounds fired\n{args.rounds}", color="gray", ha="left", va="bottom", fontsize=fs - 3)
+ax.text(args.rounds * 1.05, -0.8, f"rounds fired\n{args.rounds}", color="gray", ha="left", va="bottom", fontsize=fs - 3, bbox=box)
 ax.set_ylim(ymax, -1.6)
 
 handles = [
