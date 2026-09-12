@@ -1,0 +1,176 @@
+{
+  "metadata": {
+    "timestamp": "20250707_224324",
+    "python_version": "3.10.12 (main, May 27 2025, 17:12:29) [GCC 11.4.0]",
+    "platform": "Linux-5.15.0-143-generic-x86_64-with-glibc2.35",
+    "total_parameter_combinations": 6,
+    "filename": "fig_results/20250707_224324/sweep_simulation_data_20250707_224324.pkl",
+    "simulation_description": "Amritsar Massacre ABM Simulation - Parameter Sweep Results"
+  },
+  "config": {
+    "num_reps": 5,
+    "num_agents_list": [
+      5000,
+      10000,
+      15000
+    ],
+    "lambda_decay_list": [
+      0.2
+    ],
+    "alpha_list": [
+      0.3,
+      0.7
+    ],
+    "gamma": 0.8,
+    "sigma": 30,
+    "global_seed": 1234,
+    "time_scale": 600,
+    "update_time": 10,
+    "v0_max": 3.0,
+    "_comment": "Add some variability to avoid synchronized agent falls",
+    "determinism_strength_exits": 0.2,
+    "exit_probability": 0.1,
+    "_comment_wp_radius": "This is the radius around the waypoint where agents can be considered as having reached it",
+    "wp_radius": 10,
+    "radius_around": 1.5,
+    "n_max": 12,
+    "LAMBDA_VARIATION": 0.1
+  },
+  "summary_statistics": {
+    "parameter_combinations": {
+      "(5000, 0.2, 0.3)": {
+        "num_agents": 5000,
+        "lambda_decay": 0.2,
+        "alpha": 0.3,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 3229.4,
+          "std": 20.015993605114886,
+          "min": "3204",
+          "max": "3257"
+        }
+      },
+      "(5000, 0.2, 0.7)": {
+        "num_agents": 5000,
+        "lambda_decay": 0.2,
+        "alpha": 0.7,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 3165.6,
+          "std": 31.347089179060944,
+          "min": "3110",
+          "max": "3203"
+        }
+      },
+      "(10000, 0.2, 0.3)": {
+        "num_agents": 10000,
+        "lambda_decay": 0.2,
+        "alpha": 0.3,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 7531.2,
+          "std": 43.75568534487832,
+          "min": "7475",
+          "max": "7573"
+        }
+      },
+      "(10000, 0.2, 0.7)": {
+        "num_agents": 10000,
+        "lambda_decay": 0.2,
+        "alpha": 0.7,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 7367.4,
+          "std": 29.668838871786,
+          "min": "7327",
+          "max": "7417"
+        }
+      },
+      "(15000, 0.2, 0.3)": {
+        "num_agents": 15000,
+        "lambda_decay": 0.2,
+        "alpha": 0.3,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 12250.0,
+          "std": 79.11257801386579,
+          "min": "12145",
+          "max": "12374"
+        }
+      },
+      "(15000, 0.2, 0.7)": {
+        "num_agents": 15000,
+        "lambda_decay": 0.2,
+        "alpha": 0.7,
+        "num_repetitions": 5,
+        "evacuation_time": {
+          "mean": 10.000166666666667,
+          "std": 0.0,
+          "min": 10.000166666666667,
+          "max": 10.000166666666667
+        },
+        "casualties": {
+          "mean": 11942.2,
+          "std": 43.43454846087386,
+          "min": "11891",
+          "max": "12010"
+        }
+      }
+    },
+    "overall_statistics": {
+      "total_simulations_run": 30,
+      "avg_evacuation_time": 10.000166666666665,
+      "avg_casualties": 7580.966666666666,
+      "parameter_ranges": {
+        "num_agents": {
+          "min": 5000,
+          "max": 15000
+        },
+        "lambda_decay": {
+          "min": 0.2,
+          "max": 0.2
+        },
+        "alpha": {
+          "min": 0.3,
+          "max": 0.7
+        }
+      }
+    }
+  },
+  "data_structure_info": {
+    "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of evacuation times",
+    "dead": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of dead agent counts",
+    "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha) containing (time_series, fallen_counts) tuples",
+    "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of fallen agent positions"
+  }
+}

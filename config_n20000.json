@@ -1,9 +1,7 @@
 {
-    "num_reps": 5,
+    "num_reps": 3,
     "num_agents_list": [
-        5000,
-        10000,
-        15000
+        20000
     ],
     "lambda_decay_list": [
         0.0
@@ -34,8 +32,6 @@
     "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
     "_comment_model": "'rounds' (default): each update the soldiers fire rounds_fired/(T/dt) rounds, each incapacitating hits_per_round people on average; hits are distributed over active agents with probability proportional to r_space(x) * c(s, alpha). 'hazard': per-person hazard P = h r_space c, h = update_time/tau_line. 'legacy': survival form of the submitted manuscript.",
     "model": "rounds",
-    "rounds_fired": 1650,
-    "hits_per_round": 1.0,
     "tau_line": 60.0,
     "crowding_model": "survival",
     "_comment_firing_line": "Endpoints of the shooters' line in simulation coordinates (m), following the firing line on Wagner's map",
@@ -58,5 +54,8 @@
     "n_shooters": 50,
     "p_min": 0.05,
     "p_max": 0.95,
-    "survival_noise": 0.05
+    "survival_noise": 0.05,
+    "_comment_sweep": "Largest eyewitness crowd estimate",
+    "rounds_fired": 1650,
+    "hits_per_round": 1.0
 }

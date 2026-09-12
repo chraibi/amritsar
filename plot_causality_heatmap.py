@@ -1,13 +1,11 @@
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import read_geometry as rr
 import pedpy
-from shapely import Polygon, LinearRing
 from pathlib import Path
-import pickle
 import numpy as np
-import sys
-import os
+
+from plot_utils import load_results, walkable_area
 
 
 # ---------------------------
@@ -20,34 +18,28 @@ def plot_causality_grid(
     max_x=220,
     min_y=0,
     max_y=130,
+    vmax=None,
 ):
+    """Fallen agents per cell, averaged over runs, on a log colour scale.
+
+    vmax: common upper limit so panels of one sweep are comparable; defaults to
+    the maximum of this grid.
+    """
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Flatten all runs
-    positions = [pos for run in fallen_positions for pos in run]
-
-    width = int(np.ceil((max_x - min_x) / grid_size))
-    height = int(np.ceil((max_y - min_y) / grid_size))
-    grid = np.zeros((width, height), dtype=int)
-
-    color_map = "inferno"
-
-    for x, y in positions:
-        grid_x = int((x - min_x) // grid_size)
-        grid_y = int((y - min_y) // grid_size)
-
-        if 0 <= grid_x < width and 0 <= grid_y < height:
-            grid[grid_x, grid_y] += 1
+    grid = count_grid(fallen_positions, grid_size, min_x, max_x, min_y, max_y)
+    vmax = grid.max() if vmax is None else vmax
+    masked = np.ma.masked_less(grid.T, 1.0)  # empty cells drawn in black
 
     extent = [min_x, max_x, min_y, max_y]
     im = ax.imshow(
-        grid.T,
+        masked,
         origin="lower",
         extent=extent,
-        cmap=color_map,
-        interpolation="lanczos",
-        vmax=20,
+        cmap="inferno",
+        interpolation="nearest",
+        norm=LogNorm(vmin=1.0, vmax=max(vmax, 2.0)),
     )
+    ax.set_facecolor("black")
 
     pedpy.plot_walkable_area(
         walkable_area=pedpy.WalkableArea(walkable_area),
@@ -62,14 +54,14 @@ def plot_causality_grid(
     cbar = fig.colorbar(im, cax=cax)
     cbar.ax.tick_params(labelsize=fs)
     cbar.ax.tick_params(labelsize=fs)
-    cbar.set_label("Number of Fallen Agents", fontsize=fs)
-    cbar.ax.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, _: f"{int(x)}")
-    )  # Format as int
+    cbar.set_label(f"Fallen per {grid_size} m cell", fontsize=fs)
+    ticks = [t for t in (1, 3, 10, 30, 100, 300) if t <= max(vmax, 2.0)]
+    cbar.set_ticks(ticks)
+    cbar.set_ticklabels([str(t) for t in ticks])
+    cbar.ax.minorticks_off()
     ax.set_xlabel("X [m]", fontsize=fs)
     ax.set_ylabel("Y [m]", fontsize=fs)
-    ax.set_xticklabels(ax.get_xticks(), fontsize=fs)
-    ax.set_yticklabels(ax.get_yticks(), fontsize=fs)
+    ax.tick_params(labelsize=fs)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{int(x)}"))
 
@@ -79,18 +71,21 @@ def plot_causality_grid(
     plt.close(fig)
 
 
+def count_grid(fallen_positions, grid_size, min_x, max_x, min_y, max_y):
+    """Mean number of fallen agents per cell over the runs in fallen_positions."""
+    width = int(np.ceil((max_x - min_x) / grid_size))
+    height = int(np.ceil((max_y - min_y) / grid_size))
+    grid = np.zeros((width, height))
+    for run in fallen_positions:
+        for x, y in run:
+            gx, gy = int((x - min_x) // grid_size), int((y - min_y) // grid_size)
+            if 0 <= gx < width and 0 <= gy < height:
+                grid[gx, gy] += 1
+    return grid / max(len(fallen_positions), 1)
+
+
 # ---------------------------
-if len(sys.argv) == 1:
-    sys.exit(f"Usage {sys.argv[0]} pickle_file")
-
-save_path = sys.argv[1]
-output_dir = "fig_results"
-path = Path(save_path)
-stem = path.stem
-
-# Load data
-with open(save_path, "rb") as f:
-    loaded_data = pickle.load(f)
+loaded_data, stem, output_dir = load_results()
 
 evac_times = loaded_data["evac_times"]
 dead = loaded_data["dead"]
@@ -99,14 +94,7 @@ cl = loaded_data["results"]
 
 print("Simulation data successfully loaded.")
 
-# Read walkable area
-wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
-walkable_area0 = wkt[0]
-holes = walkable_area0.interiors[1:]
-holes.append(LinearRing([(84, 90), (84, 87), (90, 87), (90, 90), (84, 90)]))
-holes.append(LinearRing([(170, 80), (171, 80), (171, 81), (170, 81), (170, 80)]))
-holes.append(LinearRing([(100, 40), (101, 40), (101, 41), (100, 41), (100, 40)]))
-walkable_area = Polygon(shell=walkable_area0.exterior, holes=holes)
+walkable_area = walkable_area()
 
 # ---------------------------
 # 1. Plot Dead Agents vs Lambda for Different Num_Agents
@@ -117,17 +105,27 @@ fig, ax = plt.subplots()
 # 2. Plot Causality Heatmaps per (lambda, num_agents)
 
 min_x, min_y, max_x, max_y = walkable_area.bounds
+grid_size = 3
+# Common colour limit per crowd size so alpha/kappa panels are comparable
+vmax_by_n = {}
+for (num_agents, *_), fallen_positions in cl.items():
+    g = count_grid(fallen_positions, grid_size, min_x, max_x, min_y, max_y)
+    vmax_by_n[num_agents] = max(vmax_by_n.get(num_agents, 0), g.max())
 
-for (num_agents, lambda_decay, _), fallen_positions in cl.items():
+for (num_agents, _lambda_decay, alpha, kappa), fallen_positions in cl.items():
     folder = Path(output_dir) / f"N_{num_agents}"
     folder.mkdir(parents=True, exist_ok=True)
-    heatmap_file = folder / f"{stem}_causality_lambda_{lambda_decay}_N_{num_agents}.pdf"
+    heatmap_file = (
+        folder
+        / f"{stem}_causality_alpha_{alpha}_kappa_{kappa}_N_{num_agents}.pdf"
+    )
 
     plot_causality_grid(
         walkable_area=walkable_area,
         fallen_positions=fallen_positions,
         output_file=heatmap_file,
-        grid_size=3,
+        grid_size=grid_size,
+        vmax=vmax_by_n[num_agents],
         min_x=min_x,
         max_x=max_x,
         min_y=min_y,

@@ -21,7 +21,7 @@ Key features include:
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+ (pedpy 1.3+ needs it; on older system Pythons use `uv venv --python 3.12 venv`)
 - Required packages (see requirements below)
 
 ### Environment Setup
@@ -59,15 +59,114 @@ The simulation is controlled through a `config.json` file.
 | **Agent Parameters** | | | |
 | `num_agents_list` | list | List of agent counts to test | [100, 200, 500] |
 | `v0_max` | float | Maximum agent velocity (m/s) | 3.0 |
-| `determinism_strength_exits` | float | Exit selection randomness (0-1) | 0.2 |
-| `exit_probability` | float | Probability of exiting when at exit | 0.2 |
-| `wp_radius` | float | Exit detection radius (meters) | 1.0 |
+| `exit_choice_exponent` | float | β in the exit choice P_i ∝ d_i^-β | 1.0 |
+| `kappa_list` | list | Persistence: probability per update of keeping the target opening | [0.5, 0.9] |
+| `exit_flow_rate` | float | J, persons per metre per second an opening passes | 1.3 |
+| `exit_width` | float | w, width of an opening (m); capacity per update = J·w·update_time | 1.5 |
+| `exit_widths` | list | Optional per-opening widths (m), overrides `exit_width`; one entry per opening | |
+| `extra_exits` | list | Optional additional openings as [x, y] centres on the wall (1.5 m x 1 m boxes) | [] |
+| `wp_radius` | float | Radius of the exit zone around an opening (m) | 10 |
 | **Model Parameters** | | | |
 | `lambda_decay_list` | list | Stamina decay rates to test | [0.1, 0.5, 1.0] |
 | `alpha_list` | list | Shielding effectiveness values | [0.0, 0.5, 1.0] |
 | `gamma` | float | Shielding decay parameter | 0.8 |
 | `sigma` | float | Space factor parameter in meters | 20 |
+| **Model Constants** | | | |
+| `dt` | float | Simulation time step (s) | 0.01 |
+| `trajectory_every_nth_frame` | int | Frames between trajectory writes (100 = 1 frame/s) | 100 |
+| `agent_radius` | float | Agent body radius (m) | 0.15 |
+| `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
+| `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |
+| `distance_to_polygon` | float | Minimum initial distance to walls (m) | 0.5 |
+| `model` | str | `rounds` (default): rounds-limited hits distributed by exposure and crowding; `hazard`: per-person hazard P = h·r_space·c; `legacy`: survival form of the submitted paper | rounds |
+| `rounds_fired` | int | Rounds fired over the event (rounds model); per update = rounds_fired / (time_scale / update_time) | 1650 |
+| `hits_per_round` | float | People incapacitated per round on average (rounds model) | 1.0 |
+| `tau_line` | float | Hazard model only: mean time to collapse on the firing line (s); h = update_time / tau_line | 60 |
+| `crowding_model` | str | legacy model only: `survival` (submitted form) or `risk` | survival |
+| `firing_line` | list | Endpoints [[x0, y0], [x1, y1]] of the shooters' line (m), from Wagner's map | [[12, 11], [38, 90]] |
+| `n_shooters` | int | Shooter positions evenly spaced along the firing line | 50 |
+| `p_min`, `p_max` | float | Bounds of the per-update survival probability | 0.05, 0.95 |
+| `survival_noise` | float | Relative noise applied to the survival probability | 0.05 |
 
+
+## Reproducing the results of the paper
+
+Everything in the article (simulations, figures, tables) is produced by one command
+from a clean checkout:
+
+```bash
+pip install -r requirements.txt
+./reproduce.sh            # all sweeps, figures and the report; many hours on a multi-core machine
+./reproduce.sh --quick    # same pipeline with tiny crowds, a few minutes, to check the setup
+```
+
+`JOBS=8 ./reproduce.sh` limits the parallel workers; the script prints one progress line per finished run.
+
+On a many-core server (e.g. 64-core EPYC, inside `tmux`) use one worker per physical core and pin
+the BLAS/OpenMP threads, otherwise each worker spawns its own thread pool:
+
+```bash
+source venv/bin/activate
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+JOBS=64 ./reproduce.sh 2>&1 | tee reproduce.out
+```
+
+A venv created with `uv` has no pip; `reproduce.sh` needs it to record the environment, so run
+`uv pip install pip` once. Existing `results/<sweep>/*.pkl` files are skipped, so remove `results/`
+after a `--quick` test run or set `RESULTS=results_full`.
+
+### Running in batches
+
+The sweeps can be run in batches, on different machines or at different times, and
+merged afterwards. The results in the article were produced in two batches on the same
+server (commit recorded in `results/environment.txt`):
+
+```bash
+# batch 1: main results and the first sensitivity runs (126 runs)
+SWEEPS="main rate_half hits_1p5 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
+# batch 2: further sensitivity runs (84 runs)
+SWEEPS="kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40" JOBS=64 ./reproduce.sh
+```
+
+Each batch writes `results/<sweep>/` for its sweeps and a `results.zip`. To merge, unzip both
+archives into one `results/` directory and run `./reproduce.sh` there: every sweep already has
+its pickle, so nothing is simulated and the figures, `report.md`, `report.csv` and
+`summary.pdf` are regenerated over all sweeps. Running `./reproduce.sh` with no `SWEEPS`
+on an empty directory produces the same result in one go.
+
+`reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
+main results): `rate_half` (825 rounds), `hits_1p5` (1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
+openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
+(persistence 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
+crowd estimate) and `sigma_20`, `sigma_40` (exposure range); then the plot scripts,
+`make_report.py` and `plot_summary.py`. `SWEEPS="n20000 sigma_20" ./reproduce.sh` runs a
+subset; sweeps whose pickle already exists are skipped, so results produced on several
+machines can be merged into one `results/` directory and `./reproduce.sh` then regenerates
+all figures and the report without simulating. Output goes
+to `results/` (override with `RESULTS=/path ./reproduce.sh`):
+
+```
+results/<sweep>/sweep_simulation_data_<sweep>.pkl   raw results
+results/<sweep>/figures/                            time series and fatality maps
+results/model_figures/                              figures illustrating the model
+results/report.md, results/report.csv               tables for all sweeps
+results/environment.txt                             git commit, Python version, pip freeze
+results/traj/main/                                  sqlite trajectories of the main sweep
+results.zip                                         all of the above except the trajectories
+```
+
+Runs are seeded (`global_seed` in the config) and reproducible for a fixed jupedsim
+version, which is pinned in `requirements.txt`. The results reported in the article
+were produced with the tagged release (see Citation) by exactly this command;
+`environment.txt` in the archived results records the commit and package versions.
+
+## Development
+
+```bash
+pip install pytest ruff
+ruff check .
+PYTHONPATH=. pytest
+```
 
 ## Usage
 
@@ -85,7 +184,7 @@ python main.py
 
 ### Key Parameters Explained
 
-- **λ (lambda_decay)**: Controls the rate of agent stamina decay over time. Higher values mean faster deterioration.
+- **λ (lambda_decay)**: Growth of the collapse hazard with exposure time, r_time = 1 + λ t/T (hazard model); decay rate of the survival probability in the legacy model.
 - **α (alpha)**: Shielding effectiveness parameter. 1.0 = full physical shielding, 0.0 = targeted effects.
 - **γ (gamma)**: Decay rate for shielding effectiveness.
 - **σ (sigma)**: Spatial factor affecting survival probability.
@@ -96,24 +195,12 @@ The repository includes several plotting scripts for analyzing simulation result
 
 ### Plot Scripts
 
-| Script | Description | Fixed Parameters |
-|--------|-------------|------------------|
-| `plot_cumulative_fallen_agents_time_lambda.py` | Cumulative fallen agents over time for different λ values | α = fixed |
-| `plot_cumulative_fallen_agents_time_alpha.py` | Cumulative fallen agents over time for different α values | λ = fixed |
-| `heatmap.py` | Multiple PNG survival heatmaps | Various parameters |
-| `plot_heatmap_once.py` | Single PDF survival heatmap | λ = fixed |
-| `plot_heatmap_rspace.py` | Heatmaps for spatial analysis at 4 time points | - |
-
-### Running Analysis
+See [FIGURES.md](FIGURES.md) for the mapping between article figures, scripts and input data.
+Scripts that read a sweep pickle share their loading code in `plot_utils.py`:
 
 ```bash
-# Generate time series plots
-python plot_cumulative_fallen_agents_time_lambda.py
-python plot_cumulative_fallen_agents_time_alpha.py
-
-# Generate heatmaps
-python heatmap.py
-python plot_heatmap_once.py
+python plot_fallen_time_series.py fig_results/<run>/sweep_simulation_data_<run>.pkl [--vary alpha|kappa]
+python plot_causality_heatmap.py fig_results/<run>/sweep_simulation_data_<run>.pkl
 python plot_heatmap_rspace.py
 ```
 

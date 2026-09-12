@@ -8,7 +8,7 @@ from shapely import GeometryCollection, to_wkt
 from shapely.geometry import Polygon
 from shapely.ops import polygonize, unary_union
 
-"""This script takes a XML file containing a geometry as input and 
+"""This script takes a XML file containing a geometry as input and
 returns a list of Shapely polygons corresponding to the geometry.
 The script also includes functions for converting the polygons to WKT format and
 plotting the polygons using the Matplotlib and Geopandas libraries."""
@@ -115,7 +115,7 @@ def parse_geo_file(geo_file):
                 )
             except Exception:
                 message = f"there has been an error parsing subroom {subroom_id} in room {room_id}"
-                raise RuntimeError(message)
+                raise RuntimeError(message) from None
 
     return geometry_polygons
 

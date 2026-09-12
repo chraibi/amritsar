@@ -7,8 +7,8 @@ The simulation is run multiple times to get an average evacuation time and numbe
 The time series of fallen agents is also plotted.
 """
 
-import os
-import pickle
+import argparse
+from dataclasses import dataclass
 import random
 import time
 import json
@@ -19,23 +19,44 @@ import logging
 
 from utils import (
     calculate_probability,
+    collapse_hazard,
+    collapse_probability,
+    configure_logging,
     convert_seconds_to_hms,
+    crowding_factor,
+    exposure_factor,
     get_nearest_exit_id,
     get_trajectory_name,
     log_simulation_status,
-    maybe_remove_agent,
+    sample_hits,
+    select_exiting_agents,
     setup_geometry,
     setup_simulation,
     save_simulation_results,
 )
 import hashlib
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_FILE = "config.json"
 DEFAULT_OUTPUT_DIR = "fig_results"
+
+
+@dataclass
+class SimulationResult:
+    """Outcome of a single simulation run."""
+
+    elapsed_time_min: float  # simulated time at the end of the run, in minutes
+    agents_remaining: int  # agents still inside (fallen or not exited) at the end
+    time_series: list  # update times in seconds
+    fallen_per_interval: list  # newly fallen agents at each update time
+    fallen_positions: list  # (x, y) of every fallen agent
+    exited_per_exit: list  # agents that left through each opening (order of exit_areas)
+    hits_without_target: int = 0  # rounds model: hits drawn when no active agent was left
+
+    @property
+    def fallen_total(self):
+        return sum(self.fallen_per_interval)
 
 
 def generate_seeds(base_seed, num_reps):
@@ -65,13 +86,18 @@ def run_evacuation_simulation(params):
     seed = params["seed"]
     rng = np.random.default_rng(seed)
     # Create simulation
-    simulation, exit_ids, journey_ids = setup_simulation(params, rng)
+    simulation, exit_ids, journey_ids, agent_targets, trajectory_writer = setup_simulation(
+        params, rng
+    )
     # Unpack parameters
     update_time = params["update_time"]
     lambda_decay = params["lambda_decay"]
     time_scale = params["time_scale"]
-    determinism_strength_exits = params["determinism_strength_exits"]
-    exit_probability = params["exit_probability"]
+    exit_choice_exponent = params["exit_choice_exponent"]
+    kappa = params["kappa"]
+    exit_capacity = params["exit_capacity"]  # per opening
+    exit_credit = [0.0] * len(params["exit_areas"])
+    exited_per_exit = [0] * len(params["exit_areas"])
     exit_areas = params["exit_areas"]
     num_agents = params["num_agents"]
     exit_radius = params["wp_radius"]
@@ -86,19 +112,18 @@ def run_evacuation_simulation(params):
     fallen_over_time = []
     time_series = []
     overall_fallen_positions = []
+    hits_without_target = 0
     fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
-    last_update_time = -update_time
-    wa = params["walkable_area"]
-    min_x, min_y, max_x, max_y = wa.bounds
+    last_update_time = 0.0  # first update at t = update_time, so exactly T/dt updates
     # Assign individual decay rates to agents
     lambda_range = (lambda_decay - LAMBDA_VARIATION, lambda_decay + LAMBDA_VARIATION)
     agent_lambdas = {
-        agent.id: np.random.uniform(*lambda_range) for agent in simulation.agents()
+        agent.id: rng.uniform(*lambda_range) for agent in simulation.agents()
     }
 
     start_time = time.time()
-    # print(f"Enter run_evacuation_simulation with {params['seed']}")
+    logger.debug(f"Enter run_evacuation_simulation with seed {seed}")
     while (
         simulation.agent_count() > 0
         and simulation.elapsed_time() <= MAX_SIMULATION_TIME
@@ -109,7 +134,7 @@ def run_evacuation_simulation(params):
         # Only update at exact intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time
-            number_fallen_agents, number_active_agents, fallen_positions = (
+            number_fallen_agents, number_active_agents, fallen_positions, no_target = (
                 update_agent_statuses(
                     simulation=simulation,
                     fallen_status_agents=fallen_status_agents,
@@ -118,25 +143,28 @@ def run_evacuation_simulation(params):
                     time_scale=time_scale,
                     elapsed_time=elapsed_time,
                     rng=rng,
-                    min_x=min_x,
-                    min_y=min_y,
                     sigma=sigma,
                     gamma=gamma,
                     alpha=alpha,
                     radius_around=params["radius_around"],
                     n_max=params["n_max"],
+                    model_constants=params["model_constants"],
                 )
             )
 
             remove_or_update_journey(
                 simulation,
                 fallen_status_agents,
+                agent_targets,
                 exit_areas,
                 exit_ids,
                 journey_ids,
-                determinism_strength_exits,
-                exit_probability,
-                exit_radius,
+                exit_credit,
+                exited_per_exit,
+                beta=exit_choice_exponent,
+                kappa=kappa,
+                exit_capacity=exit_capacity,
+                exit_radius=exit_radius,
                 rng=rng,
             )
 
@@ -144,6 +172,7 @@ def run_evacuation_simulation(params):
             fallen_over_time.append(number_fallen_agents)
             time_series.append(elapsed_time)
             overall_fallen_positions.extend(fallen_positions)
+            hits_without_target += no_target
 
             log_simulation_status(
                 elapsed_time,
@@ -157,20 +186,25 @@ def run_evacuation_simulation(params):
             if number_active_agents == 0:
                 break
 
+    if trajectory_writer is not None:
+        trajectory_writer.close()  # flush buffered frames and release the sqlite file
+
     # Log execution time
     execution_time = time.time() - start_time
     hours, minutes, seconds = convert_seconds_to_hms(execution_time)
 
-    logging.info(
+    logger.info(
         f"Simulation finished: λ={lambda_decay}, Execution time: {hours:2d} h {minutes:2d} min {seconds:.2f} s, fallen: {sum(fallen_over_time)}"
     )
 
-    return (
-        simulation.elapsed_time() / 60,
-        simulation.agent_count(),
-        time_series,
-        fallen_over_time,
-        overall_fallen_positions,
+    return SimulationResult(
+        elapsed_time_min=simulation.elapsed_time() / 60,
+        agents_remaining=simulation.agent_count(),
+        time_series=time_series,
+        fallen_per_interval=fallen_over_time,
+        fallen_positions=overall_fallen_positions,
+        exited_per_exit=exited_per_exit,
+        hits_without_target=hits_without_target,
     )
 
 
@@ -182,21 +216,26 @@ def update_agent_statuses(
     agent_lambdas,
     time_scale,
     rng,
-    min_x,
-    min_y,
     sigma,
     gamma,
     alpha,
     radius_around,
     n_max,
+    model_constants,
 ):
-    """Update agent stamina and handle fallen agents."""
+    """Apply the collapse rule of the configured model to every active agent.
+
+    Returns (newly fallen, still active, positions of the newly fallen, hits without
+    target). The last is only non-zero for the rounds model.
+    """
+    if model_constants["model"] == "rounds":
+        return update_agent_statuses_rounds(
+            simulation, fallen_status_agents, v_distribution, rng, sigma, gamma, alpha,
+            radius_around, n_max, model_constants,
+        )
     number_fallen_agents = 0
     number_active_agents = 0
     fallen_positions = []
-    num_collapse_attempts = 0
-    radius_around = radius_around  # Covers about 7 m²
-    n_max = n_max  # Full shielding at ~1.7 persons/m²
     for agent in simulation.agents():
         agent_id = agent.id
         initial_v0 = v_distribution[agent_id]
@@ -204,99 +243,158 @@ def update_agent_statuses(
             simulation.agents_in_range(pos=agent.position, distance=radius_around)
         )
         shielding = min(1.0, len(neighbors) / n_max)
-        # print(
-        #     f"{simulation.elapsed_time()}: Agent: {agent.id} at {agent.position} has {len(neighbors)} neighbors. Density: {len(neighbors) / np.pi / radius_around**2:.2f}, shielding: {shielding:.2f}"
-        # )
 
-        # Calculate agent stamina
-        survival_prob = calculate_probability(
-            Point(agent.position),
-            elapsed_time,
-            agent_lambdas[agent_id],
-            time_scale,
-            walkable_area,
-            shielding=shielding,
-            gamma=gamma,
-            alpha=alpha,
-            sigma=sigma,
-            rng=rng,
-        )
-
-        # small prob -> p_collapse big
-        # Higher pcollapse → more likely to collapse
-        # Lower pcollapse → less likely to collapse
         if initial_v0 == 0:
             p_collapse = 1.0
+        elif model_constants["model"] == "hazard":
+            p_collapse = collapse_hazard(
+                Point(agent.position),
+                elapsed_time,
+                shielding,
+                lambda_growth=agent_lambdas[agent_id],
+                time_scale=time_scale,
+                firing_line=model_constants["firing_line"],
+                sigma=sigma,
+                gamma=gamma,
+                alpha=alpha,
+                tau_line=model_constants["tau_line"],
+                update_time=model_constants["update_time"],
+                n_shooters=model_constants["n_shooters"],
+            )
+        elif model_constants["model"] == "legacy":  # exposure survival p(x, t), then crowding
+            survival_prob = calculate_probability(
+                Point(agent.position),
+                elapsed_time,
+                agent_lambdas[agent_id],
+                time_scale,
+                model_constants["firing_line"],
+                sigma=sigma,
+                rng=rng,
+                p_min=model_constants["p_min"],
+                p_max=model_constants["p_max"],
+                n_shooters=model_constants["n_shooters"],
+                survival_noise=model_constants["survival_noise"],
+            )
+            p_collapse = collapse_probability(
+                survival_prob,
+                shielding,
+                gamma=gamma,
+                alpha=alpha,
+                crowding_model=model_constants["crowding_model"],
+            )
         else:
-            p_collapse = 1.0 - survival_prob
+            raise ValueError(f"unknown model {model_constants['model']!r}")
         # Check if agent should fall
-        rn_number = np.random.rand()
+        rn_number = rng.random()
         if not fallen_status_agents[agent_id] and rn_number < p_collapse:
             number_fallen_agents += 1
-            num_collapse_attempts += 1
             fallen_status_agents[agent_id] = True
             agent.model.v0 = 0
             v_distribution[agent_id] = 0
             fallen_positions.append(tuple(agent.position))
-
-            # Count active agents
-            # else:
-            #    number_active_agents += 1
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
-        # print(
-        #     f"{agent_id}: "
-        #     f"prob = {prob:.2f}, "
-        #     f"initial_v0 = {initial_v0:.2f}, "
-        #     f"base_speed = {float(base_speed):.2f}, "
-        #     f"p_collapse = {float(p_collapse):.2f}, "
-        #     f"rn_number = {float(rn_number):.2f}, "
-        #     f"fallen_status = {fallen_status_agents[agent_id]}, "
-        #     f"position = ({agent.position[0]:.2f}, {agent.position[1]:.2f})"
-        # )
-    return number_fallen_agents, number_active_agents, fallen_positions
+    return number_fallen_agents, number_active_agents, fallen_positions, 0
+
+
+def update_agent_statuses_rounds(
+    simulation,
+    fallen_status_agents,
+    v_distribution,
+    rng,
+    sigma,
+    gamma,
+    alpha,
+    radius_around,
+    n_max,
+    model_constants,
+):
+    """Rounds-limited collapse rule.
+
+    Each update interval the soldiers fire `rounds_per_update` rounds, each of which
+    incapacitates `hits_per_round` people on average. The hits are distributed over
+    the active agents with probability proportional to exposure r_space(x) times
+    the crowding factor c(s, alpha); an agent is hit at most once per interval.
+    """
+    active, weights = [], []
+    for agent in simulation.agents():
+        if fallen_status_agents[agent.id] or v_distribution[agent.id] == 0:
+            continue
+        neighbors = list(simulation.agents_in_range(pos=agent.position, distance=radius_around))
+        shielding = min(1.0, len(neighbors) / n_max)
+        exposure = exposure_factor(
+            Point(agent.position), model_constants["firing_line"], sigma, model_constants["n_shooters"]
+        )
+        active.append(agent)
+        weights.append(exposure * crowding_factor(shielding, gamma, alpha))
+    expected = model_constants["rounds_per_update"] * model_constants["hits_per_round"]
+    chosen, no_target = sample_hits(weights, expected, rng)
+    fallen_positions = []
+    for k in chosen:
+        agent = active[k]
+        fallen_status_agents[agent.id] = True
+        agent.model.v0 = 0
+        v_distribution[agent.id] = 0
+        fallen_positions.append(tuple(agent.position))
+    return len(chosen), len(active) - len(chosen), fallen_positions, no_target
 
 
 def remove_or_update_journey(
     simulation,
     fallen_status_agents,
+    agent_targets,
     exit_areas,
     exit_ids,
     journey_ids,
-    determinism_strength,
-    exit_probability,
+    exit_credit,
+    exited_per_exit,
+    beta,
+    kappa,
+    exit_capacity,
     exit_radius,
     rng,
 ):
-    """Check if agent has to be removed otherwise update journey."""
-    for agent in simulation.agents():
-        agent_to_be_removed = False  # assume agent is not exiting the simulation yet.
+    """Let agents through the openings up to their capacity, then re-decide targets.
 
-        # Only process movement for active agents
-        if not fallen_status_agents[agent.id]:
-            # Try to remove agent if near exit
-            for exit_area, exit_id in zip(exit_areas, exit_ids):
-                agent_to_be_removed = maybe_remove_agent(
-                    simulation,
-                    agent,
-                    exit_area,
-                    exit_probability=exit_probability,
-                    exit_radius=exit_radius,
-                    rng=rng,
-                )
-                if agent_to_be_removed:
-                    break
+    Opening k passes at most `exit_capacity[k]` agents per update (closest first,
+    unused capacity carried in `exit_credit`); `exited_per_exit[k]` counts them.
+    Every remaining active agent keeps
+    its target opening with probability kappa, otherwise draws a new one with the
+    distance-biased rule of get_nearest_exit_id (exponent beta).
+    """
+    active = [a for a in simulation.agents() if not fallen_status_agents[a.id]]
+    removed = set()
+    for k, exit_area in enumerate(exit_areas):
+        centre = exit_area.centroid
+        candidates = []
+        for agent in active:
+            if agent.id in removed:
+                continue
+            distance = Point(agent.position).distance(centre)
+            if distance < exit_radius:
+                candidates.append((distance, agent.id))
+        chosen, exit_credit[k] = select_exiting_agents(
+            candidates, exit_credit[k], exit_capacity[k]
+        )
+        exited_per_exit[k] += len(chosen)
+        for agent_id in chosen:
+            simulation.mark_agent_for_removal(agent_id)
+            removed.add(agent_id)
 
-        if not agent_to_be_removed:
-            new_journey_id, new_exit_id, *_ = get_nearest_exit_id(
-                agent.position,
-                exit_areas,
-                exit_ids,
-                journey_ids,
-                rng=rng,
-                determinism_strength=determinism_strength,
-            )
+    for agent in active:
+        if agent.id in removed or rng.random() < kappa:
+            continue
+        new_journey_id, new_exit_id, *_ = get_nearest_exit_id(
+            agent.position,
+            exit_areas,
+            exit_ids,
+            journey_ids,
+            rng=rng,
+            exit_choice_exponent=beta,
+        )
+        if new_exit_id != agent_targets[agent.id]:
             simulation.switch_agent_journey(agent.id, new_journey_id, new_exit_id)
+            agent_targets[agent.id] = new_exit_id
 
 
 def init_params(
@@ -306,20 +404,35 @@ def init_params(
     alpha,
     sigma,
     config,
+    walkable_area,
+    spawning_area,
+    exit_areas,
     gamma=0.8,
     seed=None,
+    kappa=0.5,
+    rep_idx=0,
+    trajectory_dir="traj",
 ):
-    """Define parameters and return parm object."""
+    """Define parameters and return parm object.
+
+    trajectory_dir=None disables trajectory output.
+    """
+    model = config.get("model", "rounds")
+    if model not in ("rounds", "hazard", "legacy"):
+        raise ValueError(f"config 'model' must be 'rounds', 'hazard' or 'legacy', got {model!r}")
     # ================================= MODEL PARAMETERS =========
     time_scale = config["time_scale"]  # in seconds = 10 min of shooting
     update_time = config["update_time"]  # in seconds
     v0_max = config["v0_max"]  # m/s
     # Add some variability to avoid synchronized agent falls
-    determinism_strength_exits = config["determinism_strength_exits"]
-    exit_probability = config["exit_probability"]
+    exit_choice_exponent = config["exit_choice_exponent"]
     wp_radius = config["wp_radius"]  # Radius around exit to consider agent as exiting
-    logging.info(
-        f"\t\ttime_scale: {time_scale}, update_time: {update_time}, seed: {seed}, exit_probability: {exit_probability}, determinism_strength_exits: {determinism_strength_exits}"
+    widths = config.get("exit_widths") or [config["exit_width"]] * len(exit_areas)
+    if len(widths) != len(exit_areas):
+        raise ValueError(f"exit_widths has {len(widths)} entries for {len(exit_areas)} openings")
+    exit_capacity = [config["exit_flow_rate"] * w * update_time for w in widths]
+    logger.debug(
+        f"time_scale: {time_scale}, update_time: {update_time}, seed: {seed}, kappa: {kappa}, exit_capacity: {exit_capacity}, exit_choice_exponent: {exit_choice_exponent}"
     )
     # =============================================================
     if not seed:
@@ -337,11 +450,13 @@ def init_params(
         # ============================= AGENT PARAMETERS ============
         "time_scale": time_scale,  # 600 seconds = 10 min of simulation time
         "update_time": update_time,  # How often to update agent status (10 seconds)
-        "determinism_strength_exits": determinism_strength_exits,  # Controls randomness in exit selection (0.2)
-        "exit_probability": exit_probability,  # Probability of agent exiting when at exit (0.2)
+        "exit_choice_exponent": exit_choice_exponent,  # beta: distance bias of the exit choice
+        "kappa": kappa,  # Probability of keeping the current target opening per update
+        "exit_capacity": exit_capacity,  # Agents that can pass each opening per update
         "lambda_decay": lambda_decay,
         "trajectory_file": "",
         "num_reps": num_reps,
+        "rep_idx": rep_idx,
         "shielding_gamma": gamma,
         "shielding_alpha": alpha,  # 1.0 for physical shielding, 0.0 for targeted fire
         "sigma": sigma,  # for space_factor
@@ -350,28 +465,90 @@ def init_params(
         ],  # Radius around agent to consider neighbors
         "n_max": config["n_max"],  # Maximum number of neighbors for full shielding
         "LAMBDA_VARIATION": config["LAMBDA_VARIATION"],  # Variation in lambda values
+        # ============================= MODEL CONSTANTS =============
+        "dt": config.get("dt", 0.01),  # Simulation time step (s)
+        # Write every n-th frame to the sqlite trajectory (100 = one frame per second at dt = 0.01)
+        "trajectory_every_nth_frame": config.get("trajectory_every_nth_frame", 100),
+        "agent_radius": config.get("agent_radius", 0.15),  # m
+        "v0_std": config.get("v0_std", 0.05),  # Std of desired speed distribution (m/s)
+        "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
+        "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
+        "model_constants": {
+            # "rounds": rounds-limited hits distributed by exposure and crowding (default);
+            # "hazard": per-person hazard P = h r_space c; "legacy": survival form of the submission
+            "model": model,
+            # rounds model: rounds fired over the event and people incapacitated per round
+            "rounds_per_update": config.get("rounds_fired", 1650) / (time_scale / update_time),
+            "hits_per_round": config.get("hits_per_round", 1.0),
+            # hazard model only
+            "tau_line": config.get("tau_line", 60.0),  # mean time to collapse on the firing line (s)
+            "update_time": update_time,
+            # legacy only: "risk" symmetric crowding or "survival" form of the submitted paper
+            "crowding_model": config.get("crowding_model", "survival"),
+            # Firing line endpoints (m); default follows the line drawn on Wagner's map
+            "firing_line": tuple(map(tuple, config.get("firing_line", [[12, 11], [38, 90]]))),
+            "n_shooters": config.get("n_shooters", 50),  # Shooter positions along the firing line
+            "p_min": config.get("p_min", 0.05),  # Survival probability bounds per update
+            "p_max": config.get("p_max", 0.95),
+            "survival_noise": config.get("survival_noise", 0.05),  # Relative noise on survival probability
+        },
     }
-    params["trajectory_file"] = get_trajectory_name(params)
+    params["trajectory_file"] = (
+        get_trajectory_name(params, trajectory_dir) if trajectory_dir else ""
+    )
     return params
 
 
 # ============================================================
 def load_sweep_config(config_file):
     """Load simulation configuration from a JSON file."""
-    with open(config_file, "r") as f:
+    with open(config_file) as f:
         return json.load(f)
 
 
-if __name__ == "__main__":
-    walkable_area, exit_areas, spawning_area = setup_geometry()
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--config", default=DEFAULT_CONFIG_FILE, help="Sweep configuration file"
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (DEBUG prints the per-interval simulation status)",
+    )
+    parser.add_argument(
+        "--output-dir", default=DEFAULT_OUTPUT_DIR, help="Directory for result pickles"
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Fixed name for the output files instead of a timestamp (used by reproduce.sh)",
+    )
+    parser.add_argument(
+        "--trajectory-dir",
+        default="traj",
+        help="Directory for sqlite trajectories; 'none' disables trajectory output",
+    )
+    parser.add_argument(
+        "--jobs", type=int, default=-1, help="Parallel workers (default: all cores)"
+    )
+    return parser.parse_args()
 
+
+if __name__ == "__main__":
+    args = parse_args()
+    configure_logging(args.log_level)
     # ========================= SWEEP PARAMETERS =========================
     # Load sweep parameters from config file
-    config = load_sweep_config(DEFAULT_CONFIG_FILE)
+    config = load_sweep_config(args.config)
+    walkable_area, exit_areas, spawning_area = setup_geometry(config.get("extra_exits", []))
 
     num_agents_list = config["num_agents_list"]
     lambda_decay_list = config["lambda_decay_list"]
     alpha_list = config["alpha_list"]
+    kappa_list = config["kappa_list"]
     num_reps = config["num_reps"]
     gamma = config["gamma"]
     sigma = config["sigma"]
@@ -382,6 +559,8 @@ if __name__ == "__main__":
     dead = {}
     fallen_time_series = {}
     cl = {}
+    exited_per_exit = {}
+    hits_without_target = {}
 
     all_tasks = []
 
@@ -390,67 +569,76 @@ if __name__ == "__main__":
         rep_seeds = generate_seeds(base_seed=global_seed, num_reps=num_reps)
         for lambda_decay_val in lambda_decay_list:
             for alpha_val in alpha_list:
-                for rep_idx in range(num_reps):
-                    task = (
-                        num_agents_val,
-                        lambda_decay_val,
-                        alpha_val,
-                        sigma,
-                        rep_idx,
-                        rep_seeds[rep_idx],
-                        config,
-                    )
-                    all_tasks.append(task)
+                for kappa_val in kappa_list:
+                    for rep_idx in range(num_reps):
+                        task = (
+                            num_agents_val,
+                            lambda_decay_val,
+                            alpha_val,
+                            kappa_val,
+                            sigma,
+                            rep_idx,
+                            rep_seeds[rep_idx],
+                            config,
+                        )
+                        all_tasks.append(task)
 
     def run_single_simulation(
-        num_agents_val, lambda_decay_val, alpha_val, sigma, rep_idx, seed_val, config
+        num_agents_val, lambda_decay_val, alpha_val, kappa_val, sigma, rep_idx, seed_val, config
     ):
         """Run a single simulation with given parameters in Parallel."""
-        print(
-            f">>>> Running simulations for {rep_idx}:{seed_val} num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma = {sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}"
+        configure_logging(args.log_level)  # worker processes start unconfigured
+        logger.info(
+            f"Running rep {rep_idx} (seed {seed_val}): num_agents={num_agents_val}, lambda={lambda_decay_val}, sigma={sigma}, gamma={gamma:.2f}, alpha={alpha_val:.2f}, kappa={kappa_val:.2f}"
         )
         params = init_params(
             num_agents=num_agents_val,
             num_reps=num_reps,
             lambda_decay=lambda_decay_val,
             config=config,
+            kappa=kappa_val,
+            walkable_area=walkable_area,
+            spawning_area=spawning_area,
+            exit_areas=exit_areas,
             gamma=gamma,
             sigma=sigma,
             alpha=alpha_val,
-            seed=global_seed,  # Important: still base_seed here
-        ).copy()
-        params["seed"] = seed_val
-        base_name = params.get("trajectory_file", "trajectory")
-        params["trajectory_file"] = (
-            f"{base_name}_agents{num_agents_val}_decay{lambda_decay_val}_rep{rep_idx}.sqlite"
+            seed=seed_val,
+            rep_idx=rep_idx,
+            trajectory_dir=None if args.trajectory_dir == "none" else args.trajectory_dir,
         )
         return (
             num_agents_val,
             lambda_decay_val,
             alpha_val,
+            kappa_val,
             rep_idx,
             run_evacuation_simulation(params=params),
         )
 
     # Run all tasks fully parallel
-    results = Parallel(n_jobs=-1)(
+    results = Parallel(n_jobs=args.jobs)(
         delayed(run_single_simulation)(*task) for task in all_tasks
     )
 
     # Organize the results
-    for num_agents_val, lambda_decay_val, alpha_val, rep_idx, result in results:
-        key = (num_agents_val, lambda_decay_val, alpha_val)
+    for num_agents_val, lambda_decay_val, alpha_val, kappa_val, _rep_idx, result in results:
+        key = (num_agents_val, lambda_decay_val, alpha_val, kappa_val)
         if key not in evac_times:
             evac_times[key] = []
             dead[key] = []
             fallen_time_series[key] = ([], [])
             cl[key] = []
+            exited_per_exit[key] = []
+            hits_without_target[key] = []
 
-        evac_times[key].append(result[0])
-        dead[key].append(result[1])
-        fallen_time_series[key][0].append(result[2])
-        fallen_time_series[key][1].append(result[3])
-        cl[key].append(result[4])
+        evac_times[key].append(result.elapsed_time_min)
+        dead[key].append(result.agents_remaining)
+        fallen_time_series[key][0].append(result.time_series)
+        fallen_time_series[key][1].append(result.fallen_per_interval)
+        cl[key].append(result.fallen_positions)
+        exited_per_exit[key].append(result.exited_per_exit)
+        hits_without_target[key].append(result.hits_without_target)
 
     results_file, summary_file = save_simulation_results(
         evac_times=evac_times,
@@ -458,5 +646,8 @@ if __name__ == "__main__":
         fallen_time_series=fallen_time_series,
         cl=cl,
         config=config,
-        output_dir=DEFAULT_OUTPUT_DIR,
+        output_dir=args.output_dir,
+        exited_per_exit=exited_per_exit,
+        run_name=args.run_name,
+        hits_without_target=hits_without_target,
     )

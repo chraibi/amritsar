@@ -6,3 +6,11 @@ fig_results
 backup
 __pycache__*
 .vscode
+.DS_Store
+traj/
+*.sqlite
+/*.pdf
+/*.png
+log.txt
+results/
+sweep*.log

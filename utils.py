@@ -1,11 +1,10 @@
 """Utility functions for running main.py."""
 
+import functools
 import pathlib
-from typing import List, Tuple
 
 import jupedsim as jps
 import numpy as np
-from numpy.random import normal
 from shapely import LinearRing, Point, Polygon, intersection
 
 import read_geometry as rr
@@ -17,10 +16,26 @@ import os
 import pickle
 import logging
 
+logger = logging.getLogger(__name__)
 
-def setup_geometry():
-    """Parse geometry file and return walkable_area, exit_areas, spawning_area."""
-    wkt = rr.parse_geo_file("./Jaleanwala_Bagh.xml")
+
+def configure_logging(level="INFO"):
+    """Configure root logging; safe to call again in joblib worker processes."""
+    logging.basicConfig(
+        level=getattr(logging, str(level).upper(), logging.INFO),
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        force=True,
+    )
+
+
+def setup_geometry(extra_exits=()):
+    """Parse geometry file and return walkable_area, exit_areas, spawning_area.
+
+    extra_exits: optional list of (x, y) centres of additional openings, each
+    modelled as a 1.5 m x 1 m box like the five openings from the map.
+    """
+    geometry_file = pathlib.Path(__file__).with_name("Jaleanwala_Bagh.xml")
+    wkt = rr.parse_geo_file(str(geometry_file))
 
     # %%
     # simulation might start with less than that, cause we will filter out some bad positions
@@ -43,32 +58,35 @@ def setup_geometry():
                 (212.21, 46.2927),
             ]
         ),
-        # Polygon(
-        #    [(213.326, 41.2927), (213.21, 39.7972), (212.21, 39.7972), (212.21, 41.2927)]
-        # ),
-        # Polygon( [(213.326, 46.2927), (213.21, 49.7972), (212.21, 49.7972), (212.21, 46.2927)]),
     ]
-    # small
-    # spawning_area = Polygon([(60, 99), (172, 99), (172, 11), (60, 11)])
-    # big
+    for x, y in extra_exits:
+        exit_areas.append(
+            Polygon([(x - 0.75, y), (x + 0.75, y), (x + 0.75, y - 1), (x - 0.75, y - 1)])
+        )
     spawning_area = Polygon([(40, 115), (202, 115), (202, 5), (40, 5)])
     return (walkable_area, exit_areas, spawning_area)
 
 
 def setup_simulation(params, rng):
-    """Create simulation, init agents with journeys and return simulation."""
-    seed = params["seed"]
+    """Create simulation and agents; return simulation, exit ids, journey ids, initial
+    target exit per agent, and the trajectory writer.
 
+    The caller must close the trajectory writer at the end of the run.
+    """
     num_agents = params["num_agents"]
     trajectory_file = params["trajectory_file"]
     exit_areas = params["exit_areas"]
+    trajectory_writer = None
+    if trajectory_file:
+        trajectory_writer = jps.SqliteTrajectoryWriter(
+            output_file=pathlib.Path(trajectory_file),
+            every_nth_frame=params["trajectory_every_nth_frame"],
+        )
     simulation = jps.Simulation(
         model=jps.CollisionFreeSpeedModel(),
         geometry=params["walkable_area"],
-        dt=0.01,
-        trajectory_writer=jps.SqliteTrajectoryWriter(
-            output_file=pathlib.Path(trajectory_file)
-        ),
+        dt=params["dt"],
+        trajectory_writer=trajectory_writer,
     )
 
     exit_ids = []
@@ -84,31 +102,34 @@ def setup_simulation(params, rng):
     ]
     pos_in_spawning_area = distribute_agents(
         num_agents=num_agents,
-        seed=params["seed"],  # TODO seed but lets take same for all
-        # spawning_area=params["walkable_area"],
+        seed=params["seed"],
         spawning_area=intersection(params["spawning_area"], params["walkable_area"]),
+        distance_to_agents=params["distance_to_agents"],
+        distance_to_polygon=params["distance_to_polygon"],
     )
-    v_distribution = normal(params["v0_max"], 0.05, num_agents)
-    for pos, v0 in zip(pos_in_spawning_area, v_distribution):
+    v_distribution = rng.normal(params["v0_max"], params["v0_std"], num_agents)
+    agent_targets = {}
+    for pos, v0 in zip(pos_in_spawning_area, v_distribution, strict=False):
         journey_id, exit_id, _ = get_nearest_exit_id(
             pos,
             exit_areas,
             exit_ids,
             journey_ids,
             rng=rng,
-            determinism_strength=params["determinism_strength_exits"],
+            exit_choice_exponent=params["exit_choice_exponent"],
         )
-        simulation.add_agent(
+        agent_id = simulation.add_agent(
             jps.CollisionFreeSpeedModelAgentParameters(
                 journey_id=journey_id,
                 stage_id=exit_id,
                 position=pos,
                 v0=v0,
-                radius=0.15,
+                radius=params["agent_radius"],
             )
         )
+        agent_targets[agent_id] = exit_id
 
-    return simulation, exit_ids, journey_ids
+    return simulation, exit_ids, journey_ids, agent_targets, trajectory_writer
 
 
 def convert_seconds_to_hms(seconds):
@@ -119,38 +140,134 @@ def convert_seconds_to_hms(seconds):
     return hours, minutes, remaining_seconds
 
 
-def distribute_agents(num_agents, seed, spawning_area):
+def distribute_agents(
+    num_agents, seed, spawning_area, distance_to_agents=0.3, distance_to_polygon=0.5
+):
     """Distribute agents in spawning area."""
     pos_in_spawning_area = jps.distributions.distribute_by_number(
         polygon=spawning_area,
         number_of_agents=num_agents,
-        distance_to_agents=0.3,
-        distance_to_polygon=0.5,
+        distance_to_agents=distance_to_agents,
+        distance_to_polygon=distance_to_polygon,
         seed=seed,
     )
     return pos_in_spawning_area
 
 
-def adjusted_probability(base_prob, shielding, gamma, alpha):
-    """Shielding enhances the survival chances.
+def exposure_factor(point, firing_line, sigma, n_shooters):
+    """Normalised spatial exposure r_space(x) = R(x) / R_max in [0, 1]."""
+    shooters = shooter_positions(firing_line, n_shooters)
+    risk = exposure_risk(point.x, point.y, shooters, sigma)
+    return min(risk / compute_max_risk(firing_line, sigma, n_shooters), 1.0)
 
-    alpha = 1.0 → physical shielding (more neighbors = safer)
-    alpha = 0.0 → targeted fire (more neighbors = more dangerous)
+
+def crowding_factor(shielding, gamma, alpha):
+    """c(s, alpha) = 1 - gamma (2 alpha - 1)(2 s - 1), in [1 - gamma, 1 + gamma].
+
+    alpha = 1: dense agents are protected, isolated ones exposed;
+    alpha = 0: dense clusters are targeted; alpha = 0.5: no effect.
     """
-    crowd_exposure = 1.0 - shielding  # inverse of shielding
-    hybrid_factor = alpha * shielding + (1 - alpha) * crowd_exposure
-
-    adjusted_prob = base_prob * (1 + gamma * hybrid_factor)
-    return min(adjusted_prob, 1.0)  # clamp to 1.0
+    return 1.0 - gamma * (2.0 * alpha - 1.0) * (2.0 * shielding - 1.0)
 
 
-def compute_max_risk(xmin, ymin, ymax, sigma, n_shooters):
-    y_center = 0.5 * (ymin + ymax)
-    shooter_ys = np.linspace(ymin, ymax, n_shooters)
-    risk = sum(
-        1 / (1 + ((0) ** 2 + (y_center - y) ** 2) / sigma**2) for y in shooter_ys
-    )
-    return risk
+def collapse_hazard(
+    point,
+    time_elapsed,
+    shielding,
+    lambda_growth,
+    time_scale,
+    firing_line,
+    sigma,
+    gamma,
+    alpha,
+    tau_line,
+    update_time,
+    n_shooters=50,
+):
+    """Collapse probability per update (hazard model).
+
+    P = h * r_space(x) * r_time(t) * c(s, alpha), capped at 1, with
+    h = update_time / tau_line the per-update collapse probability on the firing
+    line (tau_line: mean time to collapse there), r_time = 1 + lambda t / T the
+    growth of risk with exposure time, and c the crowding factor.
+    """
+    h = update_time / tau_line
+    r_space = exposure_factor(point, firing_line, sigma, n_shooters)
+    r_time = 1.0 + lambda_growth * time_elapsed / time_scale
+    hazard = h * r_space * r_time * crowding_factor(shielding, gamma, alpha)
+    return float(min(hazard, 1.0))
+
+
+def sample_hits(weights, expected_hits, rng):
+    """Rounds-limited collapse: draw the number of hits this interval and pick who is hit.
+
+    weights: exposure * crowding factor of every active agent (>= 0). The number of
+    hits is Poisson with the given mean (rounds per interval times hits per round),
+    capped by the number of agents with positive weight; the hit agents are drawn
+    without replacement with probability proportional to their weight. Returns the
+    indices of the hit agents and the number of hits that found no target.
+    """
+    weights = np.asarray(weights, dtype=float)
+    hits = rng.poisson(expected_hits)
+    candidates = np.flatnonzero(weights > 0)
+    if hits == 0 or candidates.size == 0:
+        return np.empty(0, dtype=int), hits
+    n = min(hits, candidates.size)
+    p = weights[candidates] / weights[candidates].sum()
+    chosen = rng.choice(candidates, size=n, replace=False, p=p)
+    return chosen, hits - n
+
+
+def collapse_probability(survival, shielding, gamma, alpha, crowding_model="risk"):
+    """Collapse probability from the exposure survival p(x,t) and the local crowding.
+
+    shielding s in [0, 1] is the local density level; alpha in [0, 1] selects the
+    regime: alpha = 1 crowds protect (dense = safer), alpha = 0 crowds are targeted
+    (dense = more dangerous), alpha = 0.5 crowding has no effect.
+
+    crowding_model = "risk" (default):
+        P = (1 - p) * (1 - gamma * (2 alpha - 1) * (2 s - 1))
+        Symmetric: the risk 1 - p is scaled by a factor in [1 - gamma, 1 + gamma],
+        so both regimes can raise or lower the risk relative to an agent at s = 0.5.
+    crowding_model = "survival" (form used in the submitted manuscript):
+        P = 1 - p * (1 + gamma * [alpha s + (1 - alpha)(1 - s)])
+        The crowding term only ever raises survival; at alpha = 0 dense agents get
+        the plain exposure risk 1 - p and never more.
+    """
+    if crowding_model == "risk":
+        factor = crowding_factor(shielding, gamma, alpha)
+        return float(np.clip((1.0 - survival) * factor, 0.0, 1.0))
+    if crowding_model == "survival":
+        hybrid_factor = alpha * shielding + (1.0 - alpha) * (1.0 - shielding)
+        return 1.0 - min(survival * (1.0 + gamma * hybrid_factor), 1.0)
+    raise ValueError(f"Unknown crowding_model {crowding_model!r}; use 'risk' or 'survival'")
+
+
+def shooter_positions(firing_line, n_shooters):
+    """Return n_shooters points evenly spaced along the firing line segment.
+
+    firing_line: ((x0, y0), (x1, y1)) endpoints in simulation coordinates.
+    """
+    (x0, y0), (x1, y1) = firing_line
+    t = np.linspace(0.0, 1.0, n_shooters)
+    return np.column_stack((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
+
+
+def exposure_risk(x, y, shooters, sigma):
+    """Sum of Lorentzian kernels from all shooter positions (Eq. rawrisk)."""
+    dx = x - shooters[:, 0]
+    dy = y - shooters[:, 1]
+    return float(np.sum(1.0 / (1.0 + (dx**2 + dy**2) / sigma**2)))
+
+
+@functools.cache
+def compute_max_risk(firing_line, sigma, n_shooters):
+    """Largest exposure risk, attained on the firing line near its midpoint.
+
+    Cached: firing_line must be a tuple of two (x, y) tuples.
+    """
+    shooters = shooter_positions(firing_line, n_shooters)
+    return max(exposure_risk(x, y, shooters, sigma) for x, y in shooters)
 
 
 def calculate_probability(
@@ -158,75 +275,43 @@ def calculate_probability(
     time_elapsed,
     lambda_decay,
     time_scale,
-    walkable_area,
-    shielding,
-    gamma,
-    alpha,
+    firing_line,
     rng,
     sigma,
     p_min=0.05,
     p_max=0.95,
     n_shooters=50,
+    survival_noise=0.05,
 ):
-    """Calculate the probability of survival for an agent using spatial exposure model."""
+    """Legacy exposure survival p(x, t) = r_space(x) * r_time(t) of the submitted manuscript.
 
-    # Spatial bounds
-    min_x, min_y, max_x, max_y = walkable_area.bounds
-
-    # Shooter line along x = min_x from min_y to max_y
-    shooter_ys = np.linspace(min_y, max_y, n_shooters)
-
-    # Compute exposure risk from all shooter positions
-    risk = 0
-    # calculate may risk of exposure based on distance to shooters
-    for shooter_y in shooter_ys:
-        dx = point.x - min_x
-        dy = point.y - shooter_y
-        risk += 1 / (1 + (dx**2 + dy**2) / sigma**2)
-
-    # Normalize risk by maximum possible value (i.e. at min_x, shooter_y=center)
-    max_risk = 29.558  # compute_max_risk(min_x, min_y, max_y, sigma, n_shooters)
-    risk_norm = risk / max_risk
+    firing_line: ((x0, y0), (x1, y1)) segment along which the shooters stand.
+    Combine with collapse_probability() to obtain the collapse probability.
+    """
+    risk_norm = exposure_factor(point, firing_line, sigma, n_shooters)
 
     # Convert to survival probability in [p_min, p_max]
     base_survival_prob = p_min + (1 - risk_norm) * (p_max - p_min)
 
     # Apply small noise
-    noise = rng.uniform(0.95, 1.05)
+    noise = rng.uniform(1 - survival_noise, 1 + survival_noise)
     noisy_survival_prob = np.clip(base_survival_prob * noise, p_min, p_max)
 
     # Time factor
     normalized_time = time_elapsed / time_scale
     time_factor = np.exp(-lambda_decay * normalized_time)
 
-    # Combine with time
-    combined_prob = noisy_survival_prob * time_factor
-
-    # Apply shielding
-    probability_final = adjusted_probability(
-        combined_prob, shielding, gamma=gamma, alpha=alpha
-    )
-
-    # print(
-    #     f"{point.x:.2f}",
-    #     f"{point.y:.2f}",
-    #     f"{risk_norm:.3f}",
-    #     f"{noisy_survival_prob:.3f}",
-    #     f"{time_factor:.3f}",
-    #     f"{probability_final:.3f}",
-    # )
-
-    return probability_final
+    return noisy_survival_prob * time_factor
 
 
 def get_nearest_exit_id(
     position: Point,
-    exit_areas: List[Polygon],
-    exit_ids: List[int],
-    journey_ids: List[int],
+    exit_areas: list[Polygon],
+    exit_ids: list[int],
+    journey_ids: list[int],
     rng,
-    determinism_strength: float = 1.0,
-) -> Tuple[int, int, float]:
+    exit_choice_exponent: float = 1.0,
+) -> tuple[int, int, float]:
     """
     Return a random exit ID and its distance, with bias toward the nearest exit.
 
@@ -234,7 +319,7 @@ def get_nearest_exit_id(
         position: The agent's current position.
         exit_areas: List of exit polygons.
         exit_ids: List of exit IDs corresponding to exit_areas.
-        determinism_strength: Controls how strongly randomness affects exit selection.
+        exit_choice_exponent: Exponent beta of the inverse-distance weighting.
         The higher the determinism factor, the more deterministic the choice becomes
         (favoring the nearest exit)
 
@@ -242,9 +327,8 @@ def get_nearest_exit_id(
         Tuple[int, int, float]: Selected journey ID, exit ID and its distance.
     """
     distances = [Point(position).distance(exit_area) for exit_area in exit_areas]
-    probabilities = 1 / (np.array(distances) + 1e-6) ** determinism_strength
+    probabilities = 1 / (np.array(distances) + 1e-6) ** exit_choice_exponent
     probabilities /= probabilities.sum()  # Normalize
-    #    selected_exit_id = np.random.choice(exit_ids, p=probabilities)
     selected_exit_id = rng.choice(exit_ids, p=probabilities)
     selected_journey_id = journey_ids[exit_ids.index(selected_exit_id)]
     selected_distance = distances[exit_ids.index(selected_exit_id)]
@@ -252,18 +336,23 @@ def get_nearest_exit_id(
     return selected_journey_id, selected_exit_id, selected_distance
 
 
-def maybe_remove_agent(
-    simulation, agent, exit_area, exit_probability, exit_radius, rng
-):
-    """Probabilistically remove agent if they are near an exit centroid."""
-    # Set random seed if provided
+def exit_capacity_per_update(flow_rate, exit_width, update_time):
+    """Agents that can pass one opening per update: J * w * dt (persons)."""
+    return flow_rate * exit_width * update_time
 
-    distance_to_exit = Point(agent.position).distance(exit_area.centroid)
-    if distance_to_exit < exit_radius:
-        if rng.random() < exit_probability:
-            simulation.mark_agent_for_removal(agent.id)
-            return True
-    return False
+
+def select_exiting_agents(candidates, credit, capacity):
+    """Pick the agents allowed through an opening in this update.
+
+    candidates: list of (distance to the opening, agent id) for agents inside the
+    exit zone. credit: unused capacity carried over from earlier updates. The
+    closest agents go first; the carry-over is capped at one update's capacity so
+    an empty opening does not bank a burst. Returns (agent ids, new credit).
+    """
+    credit = min(credit + capacity, 2 * capacity)
+    chosen = [agent_id for _, agent_id in sorted(candidates)[: int(credit)]]
+    credit -= len(chosen)
+    return chosen, min(credit, capacity)
 
 
 def log_simulation_status(
@@ -273,8 +362,8 @@ def log_simulation_status(
     exited = total_agents - current_count
     total_fallen = sum(fallen_status.values())
 
-    print(
-        f"[INFO] Time {elapsed_time:.2f}s: "
+    logger.debug(
+        f"Time {elapsed_time:.2f}s: "
         f"Num fallen {num_fallen}. Active: {active_agents} "
         f"Exited: {exited}, Fallen total: {total_fallen}. "
         f"Still in simulation: {current_count}. "
@@ -282,27 +371,38 @@ def log_simulation_status(
     )
 
 
-def get_trajectory_name(params):
+def get_trajectory_name(params, trajectory_dir="traj"):
     """Create a descriptive trajectory name from simulation parameters."""
-    os.makedirs("traj", exist_ok=True)
+    os.makedirs(trajectory_dir, exist_ok=True)
     name = (
-        f"traj/agents{params['num_agents']}_"
+        f"{trajectory_dir}/agents{params['num_agents']}_"
         f"lambda{params['lambda_decay']:.2f}_"
         f"gamma{params['shielding_gamma']:.2f}_"
         f"alpha{params['shielding_alpha']:.2f}_"
+        f"kappa{params['kappa']:.2f}_"
         f"tscale{params['time_scale']}_"
-        f"detexit{params['determinism_strength_exits']:.1f}_"
-        f"probexit{params['exit_probability']:.1f}_"
-        f"seed{params['seed']}"
+        f"seed{params['seed']}_"
+        f"rep{params['rep_idx']}.sqlite"
     )
     return name
 
 
 def save_simulation_results(
-    evac_times, dead, fallen_time_series, cl, config, output_dir="fig_results"
+    evac_times,
+    dead,
+    fallen_time_series,
+    cl,
+    config,
+    output_dir="fig_results",
+    exited_per_exit=None,
+    run_name=None,
+    hits_without_target=None,
 ):
     """
     Save simulation results along with configuration and metadata.
+
+    With run_name, files go to <output_dir>/<run_name>/sweep_simulation_data_<run_name>.pkl
+    (deterministic paths for the reproduction pipeline); otherwise a timestamp is used.
 
     Args:
         evac_times: Dictionary of evacuation times
@@ -313,8 +413,9 @@ def save_simulation_results(
         output_dir: Output directory for results
     """
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_subdir = f"{output_dir}/{timestamp}"
-    results_file = f"{output_subdir}/sweep_simulation_data_{timestamp}.pkl"
+    tag = run_name or timestamp
+    output_subdir = f"{output_dir}/{tag}"
+    results_file = f"{output_subdir}/sweep_simulation_data_{tag}.pkl"
     os.makedirs(output_subdir, exist_ok=True)
 
     metadata = {
@@ -337,31 +438,32 @@ def save_simulation_results(
         "dead": dead,
         "fallen_time_series": fallen_time_series,
         "results": cl,
+        "exited_per_exit": exited_per_exit,
+        "hits_without_target": hits_without_target,
         # Data structure documentation
         "data_structure_info": {
-            "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of evacuation times",
-            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of dead agent counts",
-            "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha) containing (time_series, fallen_counts) tuples",
-            "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha) containing lists of fallen agent positions",
+            "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of evacuation times",
+            "dead": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of agents still inside at the end (collapsed or not exited); collapsed counts are the sums of fallen_time_series",
+            "fallen_time_series": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing (time_series, fallen_counts) tuples",
+            "fallen_positions": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of fallen agent positions",
+            "exited_per_exit": "Dictionary with the same keys containing, per run, the number of agents that left through each opening (order of exit_areas)",
         },
     }
 
     with open(results_file, "wb") as f:
         pickle.dump(data_to_save, f)
 
-    summary_file = f"{output_subdir}/simulation_summary_{timestamp}.json"
+    summary_file = f"{output_subdir}/simulation_summary_{tag}.json"
     save_human_readable_summary(data_to_save, summary_file)
 
-    logging.info(f"Simulation results saved to: {results_file}")
-    logging.info(f"Summary saved to: {summary_file}")
+    logger.info(f"Simulation results saved to: {results_file}")
+    logger.info(f"Summary saved to: {summary_file}")
 
     return results_file, summary_file
 
 
 def calculate_summary_statistics(evac_times, dead, fallen_time_series):
     """Calculate summary statistics for the simulation results."""
-    import numpy as np
-
     summary = {
         "parameter_combinations": {},
         "overall_statistics": {
@@ -376,14 +478,15 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
     all_casualties = []
 
     for key, evac_list in evac_times.items():
-        num_agents, lambda_decay, alpha = key
-        dead_list = dead[key]
+        num_agents, lambda_decay, alpha, kappa = key
+        dead_list = [sum(f) for f in fallen_time_series[key][1]]  # collapsed agents per run
 
         # Calculate statistics for this parameter combination
         param_stats = {
             "num_agents": num_agents,
             "lambda_decay": lambda_decay,
             "alpha": alpha,
+            "kappa": kappa,
             "num_repetitions": len(evac_list),
             "evacuation_time": {
                 "mean": np.mean(evac_list),
@@ -415,11 +518,13 @@ def calculate_summary_statistics(evac_times, dead, fallen_time_series):
         num_agents_vals = [k[0] for k in all_keys]
         lambda_vals = [k[1] for k in all_keys]
         alpha_vals = [k[2] for k in all_keys]
+        kappa_vals = [k[3] for k in all_keys]
 
         summary["overall_statistics"]["parameter_ranges"] = {
             "num_agents": {"min": min(num_agents_vals), "max": max(num_agents_vals)},
             "lambda_decay": {"min": min(lambda_vals), "max": max(lambda_vals)},
             "alpha": {"min": min(alpha_vals), "max": max(alpha_vals)},
+            "kappa": {"min": min(kappa_vals), "max": max(kappa_vals)},
         }
 
     return summary
@@ -452,11 +557,11 @@ def load_simulation_results(filepath):
     with open(filepath, "rb") as f:
         data = pickle.load(f)
 
-    logging.info(f"Loaded simulation data from: {filepath}")
-    logging.info(f"Simulation timestamp: {data['metadata']['timestamp']}")
-    logging.info(
+    logger.info(f"Loaded simulation data from: {filepath}")
+    logger.info(f"Simulation timestamp: {data['metadata']['timestamp']}")
+    logger.info(
         f"Total parameter combinations: {data['metadata']['total_parameter_combinations']}"
     )
-    logging.info(f"Configuration used: {len(data['config'])} parameters")
+    logger.info(f"Configuration used: {len(data['config'])} parameters")
 
     return data
