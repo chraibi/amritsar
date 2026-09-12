@@ -5,6 +5,10 @@
 #   ./reproduce.sh --quick      same pipeline with tiny crowds and short runs (minutes)
 #   RESULTS=/data/amritsar ./reproduce.sh     write to another directory
 #   JOBS=8 ./reproduce.sh                      limit parallel workers (default: all cores)
+#   SWEEPS="n20000 sigma_20" ./reproduce.sh    run a subset (finished sweeps are always skipped)
+#
+# All sweeps: main tau120 open_gates_w3 open_gates_w4 sixth_door kappa_extremes
+#             exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40  (config_<name>.json)
 #
 # Progress: one line per finished run, "[sweep] 12/60 runs done, 01:23:45 elapsed".
 #
@@ -36,7 +40,8 @@ EOF
 QUICK=0
 [[ "${1:-}" == "--quick" ]] && QUICK=1
 
-SWEEPS="main tau120 open_gates_w3 open_gates_w4 sixth_door"
+ALL_SWEEPS="main tau120 open_gates_w3 open_gates_w4 sixth_door kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40"
+SWEEPS="${SWEEPS:-$ALL_SWEEPS}"
 config_for() {  # sweep name -> config file (bash 3 compatible, no associative arrays)
   case "$1" in
     main) echo config.json ;;
@@ -62,7 +67,7 @@ export MPLBACKEND=Agg
 # --- quick mode: derive small configs
 if [[ $QUICK -eq 1 ]]; then
   mkdir -p "$RESULTS/quick_configs"
-  for s in $SWEEPS; do
+  for s in $ALL_SWEEPS; do
     $PYTHON - "$(config_for "$s")" "$RESULTS/quick_configs/$s.json" <<'EOF'
 import json, sys
 c = json.load(open(sys.argv[1]))
@@ -97,9 +102,10 @@ for s in $SWEEPS; do
   echo "== $(date '+%F %T') [$s] finished ($(elapsed) elapsed)"
 done
 
-# --- figures from the sweeps
-for s in $SWEEPS; do
+# --- figures from the sweeps (every sweep with results, not only those run now)
+for s in $ALL_SWEEPS; do
   pkl="$RESULTS/$s/sweep_simulation_data_$s.pkl"
+  [[ -f "$pkl" ]] || continue
   echo "== $(date '+%F %T') [$s] figures ($(elapsed) elapsed)"
   $PYTHON plot_fallen_time_series.py "$pkl" --vary alpha
   $PYTHON plot_fallen_time_series.py "$pkl" --vary kappa

@@ -113,10 +113,15 @@ A venv created with `uv` has no pip; `reproduce.sh` needs it to record the envir
 `uv pip install pip` once. Existing `results/<sweep>/*.pkl` files are skipped, so remove `results/`
 after a `--quick` test run or set `RESULTS=results_full`.
 
-`reproduce.sh` runs the five sweeps defined by `config.json` (main results),
-`config_tau120.json` (lower-bound sensitivity), `config_open_gates_w3.json`,
-`config_open_gates_w4.json` (wider openings) and `config_sixth_door.json` (the closed
-door on the north wall open), then the plot scripts and `make_report.py`. Output goes
+`reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
+main results): `tau120` (lower-bound lethality), `open_gates_w3`, `open_gates_w4` (wider
+openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
+(persistence 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
+crowd estimate) and `sigma_20`, `sigma_40` (exposure range); then the plot scripts,
+`make_report.py` and `plot_summary.py`. `SWEEPS="n20000 sigma_20" ./reproduce.sh` runs a
+subset; sweeps whose pickle already exists are skipped, so results produced on several
+machines can be merged into one `results/` directory and `./reproduce.sh` then regenerates
+all figures and the report without simulating. Output goes
 to `results/` (override with `RESULTS=/path ./reproduce.sh`):
 
 ```

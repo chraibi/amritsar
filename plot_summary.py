@@ -28,8 +28,16 @@ labels = {
     "open_gates_w3": "openings 3 m",
     "open_gates_w4": "openings 4 m",
     "sixth_door": "north door open",
+    "kappa_extremes": r"$\kappa = 0$ and $1$",
+    "exit_zone_5": "exit zone 5 m",
+    "exit_zone_15": "exit zone 15 m",
+    "n20000": "reference model",
+    "sigma_20": r"$\sigma = 20$ m",
+    "sigma_40": r"$\sigma = 40$ m",
 }
-order = ["main", "tau120", "open_gates_w3", "open_gates_w4", "sixth_door"]
+order = [r for r in ["main", "n20000", "tau120", "kappa_extremes", "exit_zone_5", "exit_zone_15", "sigma_20", "sigma_40", "open_gates_w3", "open_gates_w4", "sixth_door"] if r in {row["run"] for row in rows}]
+order += sorted({row["run"] for row in rows} - set(order))
+labels = {k: labels.get(k, k) for k in order}
 groups = []
 for run in order:
     for n in sorted({int(r["N"]) for r in rows if r["run"] == run}):
