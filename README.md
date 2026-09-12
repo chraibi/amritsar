@@ -21,7 +21,7 @@ Key features include:
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+ (pedpy 1.3+ needs it; on older system Pythons use `uv venv --python 3.12 venv`)
 - Required packages (see requirements below)
 
 ### Environment Setup
@@ -99,6 +99,19 @@ pip install -r requirements.txt
 ```
 
 `JOBS=8 ./reproduce.sh` limits the parallel workers; the script prints one progress line per finished run.
+
+On a many-core server (e.g. 64-core EPYC, inside `tmux`) use one worker per physical core and pin
+the BLAS/OpenMP threads, otherwise each worker spawns its own thread pool:
+
+```bash
+source venv/bin/activate
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+JOBS=64 ./reproduce.sh 2>&1 | tee reproduce.out
+```
+
+A venv created with `uv` has no pip; `reproduce.sh` needs it to record the environment, so run
+`uv pip install pip` once. Existing `results/<sweep>/*.pkl` files are skipped, so remove `results/`
+after a `--quick` test run or set `RESULTS=results_full`.
 
 `reproduce.sh` runs the five sweeps defined by `config.json` (main results),
 `config_tau120.json` (lower-bound sensitivity), `config_open_gates_w3.json`,
