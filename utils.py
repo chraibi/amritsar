@@ -198,6 +198,26 @@ def collapse_hazard(
     return float(min(hazard, 1.0))
 
 
+def sample_hits(weights, expected_hits, rng):
+    """Rounds-limited collapse: draw the number of hits this interval and pick who is hit.
+
+    weights: exposure * crowding factor of every active agent (>= 0). The number of
+    hits is Poisson with the given mean (rounds per interval times hits per round),
+    capped by the number of agents with positive weight; the hit agents are drawn
+    without replacement with probability proportional to their weight. Returns the
+    indices of the hit agents and the number of hits that found no target.
+    """
+    weights = np.asarray(weights, dtype=float)
+    hits = rng.poisson(expected_hits)
+    candidates = np.flatnonzero(weights > 0)
+    if hits == 0 or candidates.size == 0:
+        return np.empty(0, dtype=int), hits
+    n = min(hits, candidates.size)
+    p = weights[candidates] / weights[candidates].sum()
+    chosen = rng.choice(candidates, size=n, replace=False, p=p)
+    return chosen, hits - n
+
+
 def collapse_probability(survival, shielding, gamma, alpha, crowding_model="risk"):
     """Collapse probability from the exposure survival p(x,t) and the local crowding.
 
@@ -376,6 +396,7 @@ def save_simulation_results(
     output_dir="fig_results",
     exited_per_exit=None,
     run_name=None,
+    hits_without_target=None,
 ):
     """
     Save simulation results along with configuration and metadata.
@@ -418,6 +439,7 @@ def save_simulation_results(
         "fallen_time_series": fallen_time_series,
         "results": cl,
         "exited_per_exit": exited_per_exit,
+        "hits_without_target": hits_without_target,
         # Data structure documentation
         "data_structure_info": {
             "evac_times": "Dictionary with keys (num_agents, lambda_decay, alpha, kappa) containing lists of evacuation times",

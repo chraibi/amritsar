@@ -78,8 +78,10 @@ The simulation is controlled through a `config.json` file.
 | `v0_std` | float | Std of the desired-speed distribution (m/s) | 0.05 |
 | `distance_to_agents` | float | Minimum initial spacing between agents (m) | 0.3 |
 | `distance_to_polygon` | float | Minimum initial distance to walls (m) | 0.5 |
-| `model` | str | `hazard`: P = h·r_space·r_time·c per update (default); `legacy`: survival form of the submitted paper | hazard |
-| `tau_line` | float | Mean time to collapse of an agent on the firing line (s); h = update_time / tau_line | 60 |
+| `model` | str | `rounds` (default): rounds-limited hits distributed by exposure and crowding; `hazard`: per-person hazard P = h·r_space·c; `legacy`: survival form of the submitted paper | rounds |
+| `rounds_fired` | int | Rounds fired over the event (rounds model); per update = rounds_fired / (time_scale / update_time) | 1650 |
+| `hits_per_round` | float | People incapacitated per round on average (rounds model) | 1.0 |
+| `tau_line` | float | Hazard model only: mean time to collapse on the firing line (s); h = update_time / tau_line | 60 |
 | `crowding_model` | str | legacy model only: `survival` (submitted form) or `risk` | survival |
 | `firing_line` | list | Endpoints [[x0, y0], [x1, y1]] of the shooters' line (m), from Wagner's map | [[12, 11], [38, 90]] |
 | `n_shooters` | int | Shooter positions evenly spaced along the firing line | 50 |
@@ -121,7 +123,7 @@ server (commit recorded in `results/environment.txt`):
 
 ```bash
 # batch 1: main results and the first sensitivity runs (126 runs)
-SWEEPS="main tau120 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
+SWEEPS="main rate_half hits_1p5 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
 # batch 2: further sensitivity runs (84 runs)
 SWEEPS="kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40" JOBS=64 ./reproduce.sh
 ```
@@ -133,7 +135,7 @@ its pickle, so nothing is simulated and the figures, `report.md`, `report.csv` a
 on an empty directory produces the same result in one go.
 
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
-main results): `tau120` (lower-bound lethality), `open_gates_w3`, `open_gates_w4` (wider
+main results): `rate_half` (825 rounds), `hits_1p5` (1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
 openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
 (persistence 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
 crowd estimate) and `sigma_20`, `sigma_40` (exposure range); then the plot scripts,

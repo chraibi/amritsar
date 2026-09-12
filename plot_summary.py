@@ -24,7 +24,8 @@ with open(Path(args.results_dir) / "report.csv") as f:
     rows = list(csv.DictReader(f))
 labels = {
     "main": "reference model",
-    "tau120": r"lower lethality, $\tau = 120$ s",
+    "rate_half": "half the rate of fire",
+    "hits_1p5": "1.5 hits per round",
     "open_gates_w3": "openings 3 m",
     "open_gates_w4": "openings 4 m",
     "sixth_door": "north door open",
@@ -35,7 +36,7 @@ labels = {
     "sigma_20": r"$\sigma = 20$ m",
     "sigma_40": r"$\sigma = 40$ m",
 }
-order = [r for r in ["main", "n20000", "tau120", "kappa_extremes", "exit_zone_5", "exit_zone_15", "sigma_20", "sigma_40", "open_gates_w3", "open_gates_w4", "sixth_door"] if r in {row["run"] for row in rows}]
+order = [r for r in ["main", "n20000", "rate_half", "hits_1p5", "kappa_extremes", "exit_zone_5", "exit_zone_15", "sigma_20", "sigma_40", "open_gates_w3", "open_gates_w4", "sixth_door"] if r in {row["run"] for row in rows}]
 order += sorted({row["run"] for row in rows} - set(order))
 labels = {k: labels.get(k, k) for k in order}
 groups = []

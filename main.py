@@ -23,9 +23,12 @@ from utils import (
     collapse_probability,
     configure_logging,
     convert_seconds_to_hms,
+    crowding_factor,
+    exposure_factor,
     get_nearest_exit_id,
     get_trajectory_name,
     log_simulation_status,
+    sample_hits,
     select_exiting_agents,
     setup_geometry,
     setup_simulation,
@@ -49,6 +52,7 @@ class SimulationResult:
     fallen_per_interval: list  # newly fallen agents at each update time
     fallen_positions: list  # (x, y) of every fallen agent
     exited_per_exit: list  # agents that left through each opening (order of exit_areas)
+    hits_without_target: int = 0  # rounds model: hits drawn when no active agent was left
 
     @property
     def fallen_total(self):
@@ -108,6 +112,7 @@ def run_evacuation_simulation(params):
     fallen_over_time = []
     time_series = []
     overall_fallen_positions = []
+    hits_without_target = 0
     fallen_status_agents = {agent.id: False for agent in simulation.agents()}
     v_distribution = {agent.id: agent.model.v0 for agent in simulation.agents()}
     last_update_time = -update_time
@@ -129,7 +134,7 @@ def run_evacuation_simulation(params):
         # Only update at exact intervals
         if (elapsed_time // update_time) > (last_update_time // update_time):
             last_update_time = elapsed_time
-            number_fallen_agents, number_active_agents, fallen_positions = (
+            number_fallen_agents, number_active_agents, fallen_positions, no_target = (
                 update_agent_statuses(
                     simulation=simulation,
                     fallen_status_agents=fallen_status_agents,
@@ -167,6 +172,7 @@ def run_evacuation_simulation(params):
             fallen_over_time.append(number_fallen_agents)
             time_series.append(elapsed_time)
             overall_fallen_positions.extend(fallen_positions)
+            hits_without_target += no_target
 
             log_simulation_status(
                 elapsed_time,
@@ -198,6 +204,7 @@ def run_evacuation_simulation(params):
         fallen_per_interval=fallen_over_time,
         fallen_positions=overall_fallen_positions,
         exited_per_exit=exited_per_exit,
+        hits_without_target=hits_without_target,
     )
 
 
@@ -216,7 +223,16 @@ def update_agent_statuses(
     n_max,
     model_constants,
 ):
-    """Update agent stamina and handle fallen agents."""
+    """Apply the collapse rule of the configured model to every active agent.
+
+    Returns (newly fallen, still active, positions of the newly fallen, hits without
+    target). The last is only non-zero for the rounds model.
+    """
+    if model_constants["model"] == "rounds":
+        return update_agent_statuses_rounds(
+            simulation, fallen_status_agents, v_distribution, rng, sigma, gamma, alpha,
+            radius_around, n_max, model_constants,
+        )
     number_fallen_agents = 0
     number_active_agents = 0
     fallen_positions = []
@@ -276,7 +292,49 @@ def update_agent_statuses(
             fallen_positions.append(tuple(agent.position))
         elif not fallen_status_agents[agent_id]:
             number_active_agents += 1
-    return number_fallen_agents, number_active_agents, fallen_positions
+    return number_fallen_agents, number_active_agents, fallen_positions, 0
+
+
+def update_agent_statuses_rounds(
+    simulation,
+    fallen_status_agents,
+    v_distribution,
+    rng,
+    sigma,
+    gamma,
+    alpha,
+    radius_around,
+    n_max,
+    model_constants,
+):
+    """Rounds-limited collapse rule.
+
+    Each update interval the soldiers fire `rounds_per_update` rounds, each of which
+    incapacitates `hits_per_round` people on average. The hits are distributed over
+    the active agents with probability proportional to exposure r_space(x) times
+    the crowding factor c(s, alpha); an agent is hit at most once per interval.
+    """
+    active, weights = [], []
+    for agent in simulation.agents():
+        if fallen_status_agents[agent.id] or v_distribution[agent.id] == 0:
+            continue
+        neighbors = list(simulation.agents_in_range(pos=agent.position, distance=radius_around))
+        shielding = min(1.0, len(neighbors) / n_max)
+        exposure = exposure_factor(
+            Point(agent.position), model_constants["firing_line"], sigma, model_constants["n_shooters"]
+        )
+        active.append(agent)
+        weights.append(exposure * crowding_factor(shielding, gamma, alpha))
+    expected = model_constants["rounds_per_update"] * model_constants["hits_per_round"]
+    chosen, no_target = sample_hits(weights, expected, rng)
+    fallen_positions = []
+    for k in chosen:
+        agent = active[k]
+        fallen_status_agents[agent.id] = True
+        agent.model.v0 = 0
+        v_distribution[agent.id] = 0
+        fallen_positions.append(tuple(agent.position))
+    return len(chosen), len(active) - len(chosen), fallen_positions, no_target
 
 
 def remove_or_update_journey(
@@ -411,8 +469,13 @@ def init_params(
         "distance_to_agents": config.get("distance_to_agents", 0.3),  # Initial spacing (m)
         "distance_to_polygon": config.get("distance_to_polygon", 0.5),  # Initial wall distance (m)
         "model_constants": {
-            # "hazard": P = h r_space r_time c (default); "legacy": survival form of the submission
-            "model": config.get("model", "hazard"),
+            # "rounds": rounds-limited hits distributed by exposure and crowding (default);
+            # "hazard": per-person hazard P = h r_space c; "legacy": survival form of the submission
+            "model": config.get("model", "rounds"),
+            # rounds model: rounds fired over the event and people incapacitated per round
+            "rounds_per_update": config.get("rounds_fired", 1650) / (time_scale / update_time),
+            "hits_per_round": config.get("hits_per_round", 1.0),
+            # hazard model only
             "tau_line": config.get("tau_line", 60.0),  # mean time to collapse on the firing line (s)
             "update_time": update_time,
             # legacy only: "risk" symmetric crowding or "survival" form of the submitted paper
@@ -492,6 +555,7 @@ if __name__ == "__main__":
     fallen_time_series = {}
     cl = {}
     exited_per_exit = {}
+    hits_without_target = {}
 
     all_tasks = []
 
@@ -561,6 +625,7 @@ if __name__ == "__main__":
             fallen_time_series[key] = ([], [])
             cl[key] = []
             exited_per_exit[key] = []
+            hits_without_target[key] = []
 
         evac_times[key].append(result.elapsed_time_min)
         dead[key].append(result.agents_remaining)
@@ -568,6 +633,7 @@ if __name__ == "__main__":
         fallen_time_series[key][1].append(result.fallen_per_interval)
         cl[key].append(result.fallen_positions)
         exited_per_exit[key].append(result.exited_per_exit)
+        hits_without_target[key].append(result.hits_without_target)
 
     results_file, summary_file = save_simulation_results(
         evac_times=evac_times,
@@ -578,4 +644,5 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         exited_per_exit=exited_per_exit,
         run_name=args.run_name,
+        hits_without_target=hits_without_target,
     )

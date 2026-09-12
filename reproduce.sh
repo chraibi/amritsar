@@ -7,7 +7,7 @@
 #   JOBS=8 ./reproduce.sh                      limit parallel workers (default: all cores)
 #   SWEEPS="n20000 sigma_20" ./reproduce.sh    run a subset (finished sweeps are always skipped)
 #
-# All sweeps: main tau120 open_gates_w3 open_gates_w4 sixth_door kappa_extremes
+# All sweeps: main rate_half hits_1p5 open_gates_w3 open_gates_w4 sixth_door kappa_extremes
 #             exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40  (config_<name>.json)
 #
 # Progress: one line per finished run, "[sweep] 12/60 runs done, 01:23:45 elapsed".
@@ -40,7 +40,7 @@ EOF
 QUICK=0
 [[ "${1:-}" == "--quick" ]] && QUICK=1
 
-ALL_SWEEPS="main tau120 open_gates_w3 open_gates_w4 sixth_door kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40"
+ALL_SWEEPS="main rate_half hits_1p5 open_gates_w3 open_gates_w4 sixth_door kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40"
 SWEEPS="${SWEEPS:-$ALL_SWEEPS}"
 config_for() {  # sweep name -> config file (bash 3 compatible, no associative arrays)
   case "$1" in

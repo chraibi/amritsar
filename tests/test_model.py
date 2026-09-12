@@ -7,6 +7,7 @@ from shapely import Point, Polygon
 from main import generate_seeds
 from utils import (
     calculate_probability,
+    sample_hits,
     exit_capacity_per_update,
     select_exiting_agents,
     collapse_hazard,
@@ -105,6 +106,29 @@ def test_select_exiting_agents_does_not_bank_a_burst():
     assert credit <= 2.5
     chosen, _ = select_exiting_agents([(i, i) for i in range(20)], credit=credit, capacity=2.5)
     assert len(chosen) <= 5
+
+
+def test_sample_hits_mean_and_weighting():
+    rng = np.random.default_rng(1)
+    weights = np.array([1.0] * 50 + [3.0] * 50 + [0.0] * 10)
+    counts = np.zeros(len(weights))
+    total = 0
+    for _ in range(2000):
+        chosen, no_target = sample_hits(weights, 2.0, rng)
+        counts[chosen] += 1
+        total += len(chosen) + no_target
+    assert counts[100:].sum() == 0  # zero weight is never hit
+    assert counts[50:100].sum() / counts[:50].sum() == pytest.approx(3.0, rel=0.15)
+    assert total / 2000 == pytest.approx(2.0, rel=0.1)  # Poisson mean
+
+
+def test_sample_hits_caps_at_available_targets():
+    rng = np.random.default_rng(2)
+    chosen, no_target = sample_hits([1.0, 1.0], 50.0, rng)
+    assert len(chosen) == 2 and len(set(chosen.tolist())) == 2
+    assert no_target >= 40
+    chosen, no_target = sample_hits([], 5.0, rng)
+    assert len(chosen) == 0 and no_target >= 0
 
 
 def test_collapse_probability_rejects_unknown_model():

@@ -46,6 +46,9 @@ for pkl in pickles:
                 "N": n,
                 "alpha": alpha,
                 "kappa": kappa,
+                "model": cfg.get("model", "hazard"),
+                "rounds_fired": cfg.get("rounds_fired"),
+                "hits_per_round": cfg.get("hits_per_round"),
                 "tau_line": cfg.get("tau_line"),
                 "exit_width": cfg.get("exit_widths") or cfg.get("exit_width"),
                 "openings": len(exits[0]) if exits.size else None,
@@ -75,8 +78,8 @@ for run in sorted({r["run"] for r in rows}):
     lines.append(f"## {run}")
     lines.append("")
     lines.append(
-        f"tau_line = {r0['tau_line']} s, exit width = {r0['exit_width']} m, "
-        f"openings = {r0['openings']}, repetitions = {r0['reps']}"
+        f"model = {r0['model']}, rounds fired = {r0['rounds_fired']}, hits per round = {r0['hits_per_round']}, "
+        f"exit width = {r0['exit_width']} m, openings = {r0['openings']}, repetitions = {r0['reps']}"
     )
     lines.append("")
     lines.append("| N | alpha | kappa | fallen (mean ± std) | share | exited | inside at end | fallen / round | exits per opening |")

@@ -1,6 +1,8 @@
 {
     "num_reps": 3,
     "num_agents_list": [
+        5000,
+        10000,
         15000
     ],
     "lambda_decay_list": [
@@ -19,7 +21,6 @@
     "_comment_exits": "Exit choice: P_i ~ (d_i)^-beta (beta = exit_choice_exponent, fixed at 1); each update an agent keeps its target with probability kappa. Each opening passes at most exit_flow_rate * exit_width * update_time agents per update.",
     "exit_choice_exponent": 1.0,
     "kappa_list": [
-        0.5,
         0.9
     ],
     "exit_flow_rate": 1.3,
@@ -32,6 +33,8 @@
     "_comment_model_constants": "Model constants reported in the paper; defaults equal the previously hard-coded values",
     "_comment_model": "'rounds' (default): each update the soldiers fire rounds_fired/(T/dt) rounds, each incapacitating hits_per_round people on average; hits are distributed over active agents with probability proportional to r_space(x) * c(s, alpha). 'hazard': per-person hazard P = h r_space c, h = update_time/tau_line. 'legacy': survival form of the submitted manuscript.",
     "model": "rounds",
+    "rounds_fired": 825,
+    "hits_per_round": 1.0,
     "tau_line": 60.0,
     "crowding_model": "survival",
     "_comment_firing_line": "Endpoints of the shooters' line in simulation coordinates (m), following the firing line on Wagner's map",
@@ -55,21 +58,5 @@
     "p_min": 0.05,
     "p_max": 0.95,
     "survival_noise": 0.05,
-    "_comment_sweep": "Historical counterfactual: the closed door on the north wall (Niven Gali) is open, 4 ft 6 in wide",
-    "extra_exits": [
-        [
-            150,
-            133.38
-        ]
-    ],
-    "exit_widths": [
-        1.5,
-        1.5,
-        1.5,
-        1.5,
-        1.5,
-        1.4
-    ],
-    "rounds_fired": 1650,
-    "hits_per_round": 1.0
+    "_comment_sweep": "Half the historical rate of fire: 825 rounds in 600 s"
 }
