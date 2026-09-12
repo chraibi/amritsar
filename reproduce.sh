@@ -118,7 +118,6 @@ REPO="$PWD"
 MAIN_CONFIG="$(cd "$(dirname "$(config_path main)")" && pwd)/$(basename "$(config_path main)")"
 ( cd "$RESULTS/model_figures" \
   && $PYTHON "$REPO/plot_heatmap_rspace.py" "$MAIN_CONFIG" \
-  && $PYTHON "$REPO/plot_hazard_calibration.py" "$MAIN_CONFIG" \
   && $PYTHON "$REPO/plot_shielding_effect.py" "$MAIN_CONFIG" \
   && $PYTHON "$REPO/plot_exit_model.py" "$MAIN_CONFIG" )
 

@@ -201,9 +201,7 @@ Scripts that read a sweep pickle share their loading code in `plot_utils.py`:
 ```bash
 python plot_fallen_time_series.py fig_results/<run>/sweep_simulation_data_<run>.pkl [--vary alpha|kappa]
 python plot_causality_heatmap.py fig_results/<run>/sweep_simulation_data_<run>.pkl
-python plot_heatmap_once.py
 python plot_heatmap_rspace.py
-python plot_exit_probabilities.py
 ```
 
 ## Output Structure
