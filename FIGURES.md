@@ -16,7 +16,7 @@ Scripts without input compute the figure analytically from the model equations.
 | `exit_choice_map.pdf`, `exit_persistence.pdf` | `plot_exit_model.py` | `config.json` | Probability of heading for the nearest opening; holding time vs kappa |
 | `results_summary.pdf` | `plot_summary.py` | `results/report.csv` | Every sweep against the official toll, the Indian estimates and the rounds fired |
 | `results_time_series_N*.pdf` | `plot_fallen_time_series.py` | sweep pickle | Cumulative collapses over time, `--vary alpha` or `--vary kappa` |
-| `results_map_N*_alpha*.pdf` | `plot_causality_heatmap.py` | sweep pickle | Positions of collapsed agents, mean per 3 m cell, log colour scale |
+| `results_map_N*_alpha*.pdf` | `plot_causality_heatmap.py` | sweep pickle | Positions of collapsed agents, mean over runs smoothed with a 2 m Gaussian, per 3 m square, square-root colour scale |
 
 All of these are produced by `./reproduce.sh` (see README); `results/report.md` and `report.csv` come from `make_report.py`.
 
