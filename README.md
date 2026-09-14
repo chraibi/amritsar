@@ -118,14 +118,16 @@ after a `--quick` test run or set `RESULTS=results_full`.
 ### Running in batches
 
 The sweeps can be run in batches, on different machines or at different times, and
-merged afterwards. The results in the article were produced in two batches on the same
+merged afterwards. The results in the article were produced in three batches on the same
 server (commit recorded in `results/environment.txt`):
 
 ```bash
-# batch 1: main results and the first sensitivity runs (126 runs)
-SWEEPS="main rate_half hits_1p5 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
+# batch 1: main results and the first sensitivity runs (108 runs)
+SWEEPS="main hits_1p5 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduce.sh
 # batch 2: further sensitivity runs (84 runs)
 SWEEPS="kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40" JOBS=64 ./reproduce.sh
+# batch 3: lower reading of the hits per round (18 runs)
+SWEEPS="hits_0p5" JOBS=64 ./reproduce.sh
 ```
 
 Each batch writes `results/<sweep>/` for its sweeps and a `results.zip`. To merge, unzip both
@@ -135,7 +137,7 @@ its pickle, so nothing is simulated and the figures, `report.md`, `report.csv` a
 on an empty directory produces the same result in one go.
 
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
-main results): `rate_half` (825 rounds), `hits_1p5` (1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
+main results): `hits_0p5`, `hits_1p5` (0.5 and 1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
 openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
 (persistence 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
 crowd estimate) and `sigma_20`, `sigma_40` (exposure range); then the plot scripts,
