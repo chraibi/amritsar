@@ -118,7 +118,7 @@ after a `--quick` test run or set `RESULTS=results_full`.
 ### Running in batches
 
 The sweeps can be run in batches, on different machines or at different times, and
-merged afterwards. The results in the article were produced in three batches on the same
+merged afterwards. The results in the article were produced in four batches on the same
 server (commit recorded in `results/environment.txt`):
 
 ```bash
@@ -128,6 +128,8 @@ SWEEPS="main hits_1p5 open_gates_w3 open_gates_w4 sixth_door" JOBS=64 ./reproduc
 SWEEPS="kappa_extremes exit_zone_5 exit_zone_15 n20000 sigma_20 sigma_40" JOBS=64 ./reproduce.sh
 # batch 3: lower reading of the hits per round (18 runs)
 SWEEPS="hits_0p5" JOBS=64 ./reproduce.sh
+# batch 4: crowding regime at its extremes (18 runs)
+SWEEPS="alpha_extremes" JOBS=64 ./reproduce.sh
 ```
 
 Each batch writes `results/<sweep>/` for its sweeps and a `results.zip`. To merge, unzip both
@@ -139,7 +141,7 @@ on an empty directory produces the same result in one go.
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
 main results): `hits_0p5`, `hits_1p5` (0.5 and 1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
 openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`
-(persistence 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
+(persistence 0 and 1), `alpha_extremes` (crowding regime 0 and 1), `exit_zone_5`, `exit_zone_15` (exit zone radius), `n20000` (largest
 crowd estimate) and `sigma_20`, `sigma_40` (exposure range); then the plot scripts,
 `make_report.py` and `plot_summary.py`. `SWEEPS="n20000 sigma_20" ./reproduce.sh` runs a
 subset; sweeps whose pickle already exists are skipped, so results produced on several
