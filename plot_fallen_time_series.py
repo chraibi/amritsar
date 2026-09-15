@@ -12,7 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from plot_utils import load_results, save_figure
+from plot_utils import for_article, load_results, save_figure
+
+article = for_article()
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("pickle")
@@ -79,17 +81,18 @@ for num_agents in sorted({k[0] for k in keys}):
         ax.set_xlabel("Time (s)", fontsize=12, labelpad=8, color="dimgrey")
         ax.set_ylabel("Cumulative collapsed agents", fontsize=12, labelpad=8, color="dimgrey")
         n_label = f"{num_agents:,}".replace(",", " ")
-        ax.set_title(
-            rf"Collapses over time, $N$ = {n_label}, ${symbol[fixed]} = {fixed_value:.1f}$",
-            fontsize=14, loc="left", pad=7, color="dimgrey",
-        )
+        if not article:
+            ax.set_title(
+                rf"Collapses over time, $N$ = {n_label}, ${symbol[fixed]} = {fixed_value:.1f}$",
+                fontsize=14, loc="left", pad=7, color="dimgrey",
+            )
+            ax.text(0.02, 0.97, insight(means), transform=ax.transAxes, ha="left", va="top", fontsize=9, color="dimgrey", style="italic")
         ax.set_xlim(0, max_time)
         ax.set_ylim(bottom=0)
         ax.legend(
             loc="lower right", fontsize=10, title="mean ± std at the end", title_fontsize=9,
             frameon=True, facecolor="white", framealpha=0.8, edgecolor="lightgrey", labelcolor="dimgrey",
         )
-        ax.text(0.02, 0.97, insight(means), transform=ax.transAxes, ha="left", va="top", fontsize=9, color="dimgrey", style="italic")
         ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
         ax.grid(False)
         sns.despine(left=True, bottom=True)

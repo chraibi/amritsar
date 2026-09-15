@@ -39,3 +39,15 @@ def save_figure(fig, path, dpi=150):
     for suffix in (".pdf", ".png"):
         fig.savefig(path.with_suffix(suffix), dpi=dpi, bbox_inches="tight")
     return path.with_suffix(".pdf")
+
+
+def for_article():
+    """True when `--for-article` is on the command line, and remove the flag.
+
+    Article copies carry neither a title nor an insight line: the caption says it.
+    Call before parsing the remaining arguments.
+    """
+    if "--for-article" not in sys.argv:
+        return False
+    sys.argv.remove("--for-article")
+    return True

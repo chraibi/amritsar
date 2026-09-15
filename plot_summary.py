@@ -15,7 +15,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.lines import Line2D
 
-from plot_utils import save_figure
+from plot_utils import for_article, save_figure
+
+article = for_article()
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("results_dir")
@@ -77,7 +79,8 @@ ax.invert_yaxis()
 ax.set_xscale("log")
 ax.set_xlim(250, 14000)
 ax.set_xlabel("Collapsed agents (log scale)", fontsize=12, labelpad=8, color="dimgrey")
-ax.set_title("Simulated collapses against the historical numbers", fontsize=14, loc="left", pad=7, color="dimgrey")
+if not article:
+    ax.set_title("Simulated collapses against the historical numbers", fontsize=14, loc="left", pad=7, color="dimgrey")
 
 ymax = len(groups) - 0.5
 box = dict(facecolor="white", edgecolor="none", pad=1.5)
@@ -109,11 +112,12 @@ def describe(r):
     return f"{float(r['fallen_mean']):.0f} ({labels[r['run']]}, $N$ = {n_label})"
 
 
-fig.text(
-    0.98, -0.01,
-    f"Every run exceeds the official toll: lowest {describe(lowest)}, highest {describe(highest)}",
-    ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
-)
+if not article:
+    fig.text(
+        0.98, -0.01,
+        f"Every run exceeds the official toll: lowest {describe(lowest)}, highest {describe(highest)}",
+        ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
+    )
 
 # --- Save ---
 print(save_figure(fig, Path(args.results_dir) / "summary.pdf"))

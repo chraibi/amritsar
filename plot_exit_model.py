@@ -13,8 +13,10 @@ import numpy as np
 import seaborn as sns
 from shapely import Point, contains_xy
 
-from plot_utils import save_figure
+from plot_utils import for_article, save_figure
 from utils import setup_geometry
+
+article = for_article()
 
 # --- Data ---
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
@@ -57,8 +59,9 @@ ax.set_xlim(min_x - 5, max_x + 5)
 ax.set_ylim(min_y - 5, max_y + 5)
 ax.set_xlabel("x (m)", fontsize=12, labelpad=8, color="dimgrey")
 ax.set_ylabel("y (m)", fontsize=12, labelpad=8, color="dimgrey")
-ax.set_title(rf"Probability of heading for the nearest opening, $\beta$ = {beta:g}", fontsize=14, loc="left", pad=7, color="dimgrey")
-fig.text(
+if not article:
+    ax.set_title(rf"Probability of heading for the nearest opening, $\beta$ = {beta:g}", fontsize=14, loc="left", pad=7, color="dimgrey")
+    fig.text(
     0.98, -0.03, f"White squares: the {len(exit_areas)} openings; in the centre the choice is close to even, {np.nanmin(Z):.2f} for the nearest",
     ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
 )
@@ -79,7 +82,8 @@ fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
 ax.plot(kap, hold, color=pal[5], lw=2.5, zorder=3)
 ax.set_xlabel(r"Persistence $\kappa$", fontsize=12, labelpad=8, color="dimgrey")
 ax.set_ylabel("Mean time a target is kept (s)", fontsize=12, labelpad=8, color="dimgrey")
-ax.set_title("Persistence of the chosen opening", fontsize=14, loc="left", pad=7, color="dimgrey")
+if not article:
+    ax.set_title("Persistence of the chosen opening", fontsize=14, loc="left", pad=7, color="dimgrey")
 ax.set_yscale("log")
 ax.set_ylim(dt, T)
 for k in kappas:

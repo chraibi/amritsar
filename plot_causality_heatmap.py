@@ -16,7 +16,7 @@ from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from shapely import contains_xy
 
-from plot_utils import load_results, save_figure
+from plot_utils import for_article, load_results, save_figure
 from utils import setup_geometry, shooter_positions
 
 SMOOTH_SIGMA = 2.0  # m
@@ -82,7 +82,8 @@ def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside
     ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
     ax.set_xlabel("x (m)", fontsize=12, labelpad=8, color="dimgrey")
     ax.set_ylabel("y (m)", fontsize=12, labelpad=8, color="dimgrey")
-    ax.set_title(title, fontsize=14, loc="left", pad=7, color="dimgrey")
+    if title:
+        ax.set_title(title, fontsize=14, loc="left", pad=7, color="dimgrey")
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
     cbar.set_label(f"Collapsed agents per {REPORT_CELL:.0f} m × {REPORT_CELL:.0f} m", color="dimgrey")
@@ -96,6 +97,7 @@ def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside
     plt.close(fig)
 
 
+article = for_article()
 loaded_data, stem, output_dir = load_results()
 config = loaded_data["config"]
 results = loaded_data["results"]
@@ -120,6 +122,6 @@ for (num_agents, _lambda_decay, alpha, kappa), density in densities.items():
     folder.mkdir(parents=True, exist_ok=True)
     heatmap_file = folder / f"{stem}_causality_alpha_{alpha}_kappa_{kappa}_N_{num_agents}.pdf"
     n_label = f"{num_agents:,}".replace(",", " ")
-    title = rf"Where the agents fell, $N$ = {n_label}, $\alpha$ = {alpha}, $\kappa$ = {kappa}"
+    title = "" if article else rf"Where the agents fell, $N$ = {n_label}, $\alpha$ = {alpha}, $\kappa$ = {kappa}"
     plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside, vmax_by_n[num_agents], heatmap_file, title)
     print(f">> Saved heatmap: {heatmap_file}")

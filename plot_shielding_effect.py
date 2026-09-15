@@ -12,8 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from plot_utils import save_figure
+from plot_utils import for_article, save_figure
 from utils import crowding_factor
+
+article = for_article()
 
 # --- Data ---
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
@@ -44,10 +46,12 @@ ax.axvline(n_max / area, color="lightgrey", lw=0.8, ls=":", zorder=1)
 ax.text(n_max / area + 0.03, 1.55, r"$s = 1$", color="dimgrey", ha="left", va="center", fontsize=10)
 ax.set_xlabel(r"Local density $\rho$ (persons/m$^2$)", fontsize=12, labelpad=8, color="dimgrey")
 ax.set_ylabel(r"Crowding factor $c(s, \alpha)$", fontsize=12, labelpad=8, color="dimgrey")
-ax.set_title("Crowding factor versus local density", fontsize=14, loc="left", pad=7, color="dimgrey")
+if not article:
+    ax.set_title("Crowding factor versus local density", fontsize=14, loc="left", pad=7, color="dimgrey")
 ax.set_xlim(density[0], density[-1] + 0.6)
 ax.set_xticks(np.arange(0, density[-1] + 0.01, 0.5))
-fig.text(
+if not article:
+    fig.text(
     0.98, -0.03,
     rf"Dense groups draw {1 + gamma:.1f}× the rounds when targeted ($\alpha = 0$) and {1 - gamma:.1f}× when they shield ($\alpha = 1$)",
     ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",

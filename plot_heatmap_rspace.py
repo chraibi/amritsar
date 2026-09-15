@@ -15,8 +15,10 @@ import numpy as np
 import seaborn as sns
 from shapely import Point, contains_xy
 
-from plot_utils import save_figure
+from plot_utils import for_article, save_figure
 from utils import exposure_factor, setup_geometry, shooter_positions
+
+article = for_article()
 
 # --- Data ---
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
@@ -60,11 +62,12 @@ ax.set_xlim(min_x - 5, max_x + 5)
 ax.set_ylim(min_y - 5, max_y + 5)
 ax.set_xlabel("x (m)", fontsize=12, labelpad=8, color="dimgrey")
 ax.set_ylabel("y (m)", fontsize=12, labelpad=8, color="dimgrey")
-ax.set_title(rf"Spatial exposure to the firing line, $\sigma$ = {sigma:g} m", fontsize=14, loc="left", pad=7, color="dimgrey")
-fig.text(
-    0.98, -0.03, f"Red dots: the {n_shooters} shooters; exposure falls to about {np.nanmin(Z):.2f} at the far wall",
-    ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
-)
+if not article:
+    ax.set_title(rf"Spatial exposure to the firing line, $\sigma$ = {sigma:g} m", fontsize=14, loc="left", pad=7, color="dimgrey")
+    fig.text(
+        0.98, -0.03, f"Red dots: the {n_shooters} shooters; exposure falls to about {np.nanmin(Z):.2f} at the far wall",
+        ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
+    )
 
 cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02, ticks=[0, contour_level, 1])
 cbar.set_label(r"Spatial exposure $r_\mathrm{space}$ (1 on the firing line)", color="dimgrey")
