@@ -14,3 +14,6 @@ traj/
 log.txt
 results/
 sweep*.log
+results*.zip
+results_rounds/
+reproduce.out

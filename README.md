@@ -138,6 +138,21 @@ its pickle, so nothing is simulated and the figures, `report.md`, `report.csv` a
 `summary.pdf` are regenerated over all sweeps. Running `./reproduce.sh` with no `SWEEPS`
 on an empty directory produces the same result in one go.
 
+### Closing run
+
+The archived results are produced once more, from scratch, at the tagged release:
+
+```bash
+git clone --branch <tag> <repo-url> amritsar && cd amritsar
+uv venv --python 3.12 venv && source venv/bin/activate
+uv pip install -r requirements.txt pip
+export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+JOBS=64 ./reproduce.sh 2>&1 | tee reproduce.out
+```
+
+`results.zip` and `reproduce.out` are the artefacts to archive; `environment.txt` inside the
+zip must name the tagged commit with `0 modified files`.
+
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
 main results): `hits_0p5`, `hits_1p5` (0.5 and 1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
 openings), `sixth_door` (the closed door on the north wall open), `kappa_extremes`

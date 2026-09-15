@@ -1,8 +1,9 @@
 # Figures in the article and their sources
 
-Reference dataset: `data_to_publish/20250707_224324/sweep_simulation_data_20250707_224324.pkl`
-(sweep with N = 5000, 10000, 15000; lambda = 0.2; alpha = 0.3, 0.7; 5 repetitions;
-config in the accompanying `simulation_summary_*.json`).
+Reference dataset: `results/` as written by `./reproduce.sh`, the main sweep
+(N = 5000, 10000, 15000; alpha = 0.3, 0.7; kappa = 0.5, 0.9; 5 repetitions) and the
+twelve sensitivity sweeps; the config of each is in its `simulation_summary_*.json`.
+The submitted-version dataset is described at the end of this file.
 
 Scripts that take a pickle are run as `python <script> <pickle>` and write to a `figures/` directory next to the pickle. `./reproduce.sh` runs all sweeps, all scripts below and `make_report.py`; see README.
 Scripts without input compute the figure analytically from the model equations.
