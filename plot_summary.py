@@ -93,13 +93,13 @@ ax.text(args.rounds * 1.05, -0.8, f"rounds fired\n{args.rounds}", color="grey", 
 ax.set_ylim(ymax, -1.6)
 
 handles = [
-    Line2D([], [], marker=style["targeted"][1], color=style["targeted"][0], ls="", label=r"$\alpha = 0.3$ (crowds targeted)"),
-    Line2D([], [], marker=style["protective"][1], color=style["protective"][0], ls="", label=r"$\alpha = 0.7$ (crowds protect)"),
+    Line2D([], [], marker=style["targeted"][1], color=style["targeted"][0], ls="", label=r"$\alpha = 0.3$, or $0$ in the $\alpha$ run (crowds targeted)"),
+    Line2D([], [], marker=style["protective"][1], color=style["protective"][0], ls="", label=r"$\alpha = 0.7$, or $1$ in the $\alpha$ run (crowds protect)"),
 ]
 ax.legend(
     handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.05), ncol=2, fontsize=10,
     frameon=True, facecolor="white", framealpha=0.8, edgecolor="lightgrey", labelcolor="dimgrey",
-    title=r"per row: $\kappa = 0.9$ above, $\kappa = 0.5$ below", title_fontsize=9,
+    title=r"per row: $\kappa = 0.9$ (or $1$) above, $\kappa = 0.5$ (or $0$) below", title_fontsize=9,
 )
 ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
 ax.grid(False)
