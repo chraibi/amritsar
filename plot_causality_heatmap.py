@@ -16,7 +16,7 @@ from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from shapely import contains_xy
 
-from plot_utils import load_results
+from plot_utils import load_results, save_figure
 from utils import setup_geometry, shooter_positions
 
 SMOOTH_SIGMA = 2.0  # m
@@ -49,7 +49,7 @@ def density_grid(fallen_positions, x_edges, y_edges):
     return gaussian_smooth(counts, SMOOTH_SIGMA) * REPORT_CELL**2
 
 
-def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside, vmax, output_file):
+def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside, vmax, output_file, title):
     """Draw one smoothed map of the fallen agents over the geometry."""
     sns.set_theme(font_scale=1.0, style="whitegrid", font="DejaVu Sans")
     fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
@@ -80,8 +80,9 @@ def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside
     ax.set_ylim(y_edges[0] - 5, y_edges[-1] + 5)
     ax.grid(False)
     ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
-    ax.set_xlabel("x [m]", color="dimgrey")
-    ax.set_ylabel("y [m]", color="dimgrey")
+    ax.set_xlabel("x (m)", fontsize=12, labelpad=8, color="dimgrey")
+    ax.set_ylabel("y (m)", fontsize=12, labelpad=8, color="dimgrey")
+    ax.set_title(title, fontsize=14, loc="left", pad=7, color="dimgrey")
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
     cbar.set_label(f"Collapsed agents per {REPORT_CELL:.0f} m × {REPORT_CELL:.0f} m", color="dimgrey")
@@ -91,7 +92,7 @@ def plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside
     cbar.outline.set_visible(False)
     sns.despine(left=True, bottom=True)
 
-    fig.savefig(output_file, dpi=300, bbox_inches="tight")
+    save_figure(fig, output_file)
     plt.close(fig)
 
 
@@ -118,5 +119,7 @@ for (num_agents, _lambda_decay, alpha, kappa), density in densities.items():
     folder = Path(output_dir) / f"N_{num_agents}"
     folder.mkdir(parents=True, exist_ok=True)
     heatmap_file = folder / f"{stem}_causality_alpha_{alpha}_kappa_{kappa}_N_{num_agents}.pdf"
-    plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside, vmax_by_n[num_agents], heatmap_file)
+    n_label = f"{num_agents:,}".replace(",", " ")
+    title = rf"Where the agents fell, $N$ = {n_label}, $\alpha$ = {alpha}, $\kappa$ = {kappa}"
+    plot_fallen_map(walkable, exits, shooters, density, x_edges, y_edges, inside, vmax_by_n[num_agents], heatmap_file, title)
     print(f">> Saved heatmap: {heatmap_file}")

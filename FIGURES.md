@@ -5,7 +5,7 @@ Reference dataset: `results/` as written by `./reproduce.sh`, the main sweep
 twelve sensitivity sweeps; the config of each is in its `simulation_summary_*.json`.
 The submitted-version dataset is described at the end of this file.
 
-Scripts that take a pickle are run as `python <script> <pickle>` and write to a `figures/` directory next to the pickle. `./reproduce.sh` runs all sweeps, all scripts below and `make_report.py`; see README.
+Scripts that take a pickle are run as `python <script> <pickle>` and write to a `figures/` directory next to the pickle. Every figure is written as PDF (used in the article) and PNG. `./reproduce.sh` runs all sweeps, all scripts below and `make_report.py`; see README.
 Scripts without input compute the figure analytically from the model equations.
 
 | Article figure (`figs/`) | Script | Input | Notes |

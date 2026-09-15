@@ -28,3 +28,14 @@ def load_results(argv=None):
 def walkable_area():
     """Walkable area of the Bagh as used in the simulation."""
     return setup_geometry()[0]
+
+
+def save_figure(fig, path, dpi=150):
+    """Save a figure as PDF and PNG next to each other with a tight bounding box.
+
+    Returns the PDF path.
+    """
+    path = Path(path)
+    for suffix in (".pdf", ".png"):
+        fig.savefig(path.with_suffix(suffix), dpi=dpi, bbox_inches="tight")
+    return path.with_suffix(".pdf")

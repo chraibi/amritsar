@@ -2,7 +2,7 @@
 capacity-limited openings.
 
 Usage: python plot_exit_model.py [config.json]
-Writes exit_choice_map.pdf and exit_persistence.pdf.
+Writes exit_choice_map and exit_persistence as .pdf and .png.
 """
 
 import json
@@ -10,11 +10,13 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from shapely import Point
+import seaborn as sns
+from shapely import Point, contains_xy
 
+from plot_utils import save_figure
 from utils import setup_geometry
 
+# --- Data ---
 config_file = sys.argv[1] if len(sys.argv) > 1 else "config.json"
 with open(config_file) as f:
     config = json.load(f)
@@ -24,66 +26,77 @@ dt, T = config["update_time"], config["time_scale"]
 
 walkable_area, exit_areas, _ = setup_geometry(config.get("extra_exits", []))
 min_x, min_y, max_x, max_y = walkable_area.bounds
-fs = 14
+
+# --- Style Setup ---
+sns.set_theme(font_scale=1.0, style="whitegrid", font="DejaVu Sans")
+pal = sns.cubehelix_palette(6, rot=-0.25, light=0.7)
+cmap = sns.cubehelix_palette(rot=-0.25, light=0.9, as_cmap=True)
 
 # ---------- 1. Probability of heading for the nearest opening, over the Bagh
 nx = ny = 300
 xs = np.linspace(min_x, max_x, nx)
 ys = np.linspace(min_y, max_y, ny)
 X, Y = np.meshgrid(xs, ys)
+inside = contains_xy(walkable_area, X, Y)
 Z = np.full_like(X, np.nan)
-for i in range(ny):
-    for j in range(nx):
-        pt = Point(X[i, j], Y[i, j])
-        if not walkable_area.contains(pt):
-            continue
-        d = np.array([pt.distance(e) for e in exit_areas])
-        p = (d + 1e-6) ** -beta
-        Z[i, j] = p.max() / p.sum()
-fig, ax = plt.subplots(figsize=(9, 6))
-im = ax.imshow(Z, origin="lower", extent=(min_x, max_x, min_y, max_y), cmap="viridis", vmin=0.2, vmax=1.0)
-x_outer, y_outer = walkable_area.exterior.xy
-ax.plot(x_outer, y_outer, color="black", lw=1)
-for interior in walkable_area.interiors:
-    ax.plot(*interior.xy, color="black", lw=1)
+for i, j in zip(*np.nonzero(inside), strict=True):
+    d = np.array([Point(X[i, j], Y[i, j]).distance(e) for e in exit_areas])
+    p = (d + 1e-6) ** -beta
+    Z[i, j] = p.max() / p.sum()
+
+fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+im = ax.imshow(Z, origin="lower", extent=(min_x, max_x, min_y, max_y), cmap=cmap, vmin=0.2, vmax=1.0)
+bx, by = walkable_area.exterior.xy
+ax.plot(bx, by, color="dimgrey", lw=1.2)
+for hole in walkable_area.interiors:
+    ax.fill(*hole.xy, color="lightgrey", lw=0)
 for e in exit_areas:
-    ax.plot(e.centroid.x, e.centroid.y, marker="s", color="red", ms=8)
-ax.set_xlabel("X [m]", fontsize=fs)
-ax.set_ylabel("Y [m]", fontsize=fs)
-ax.tick_params(labelsize=fs - 2)
-cax = make_axes_locatable(ax).append_axes("right", size="4%", pad=0.08)
-cbar = fig.colorbar(im, cax=cax)
-cbar.set_label(rf"Probability of choosing the nearest opening ($\beta = {beta:g}$)", fontsize=fs - 2)
-cbar.ax.tick_params(labelsize=fs - 2)
-fig.tight_layout()
-fig.savefig("exit_choice_map.pdf", bbox_inches="tight")
+    ax.plot(e.centroid.x, e.centroid.y, marker="s", ms=7, mfc="white", mec="dimgrey", mew=1.2, zorder=6)
+ax.set_aspect("equal")
+ax.set_xlim(min_x - 5, max_x + 5)
+ax.set_ylim(min_y - 5, max_y + 5)
+ax.set_xlabel("x (m)", fontsize=12, labelpad=8, color="dimgrey")
+ax.set_ylabel("y (m)", fontsize=12, labelpad=8, color="dimgrey")
+ax.set_title(rf"Probability of heading for the nearest opening, $\beta$ = {beta:g}", fontsize=14, loc="left", pad=7, color="dimgrey")
+fig.text(
+    0.98, -0.03, f"White squares: the {len(exit_areas)} openings; in the centre the choice is close to even, {np.nanmin(Z):.2f} for the nearest",
+    ha="right", va="bottom", fontsize=9, color="dimgrey", style="italic",
+)
+cbar = fig.colorbar(im, ax=ax, fraction=0.035, pad=0.02)
+cbar.set_label("Probability of the nearest opening", color="dimgrey")
+cbar.ax.tick_params(length=0, labelcolor="dimgrey")
+cbar.outline.set_visible(False)
+ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
+ax.grid(False)
+sns.despine(left=True, bottom=True)
+print(save_figure(fig, "exit_choice_map.pdf"))
 plt.close(fig)
-print("exit_choice_map.pdf")
 
 # ---------- 2. Persistence: how long a target is held, and how often it changes
 kap = np.linspace(0, 0.99, 200)
 hold = dt / (1 - kap)  # mean holding time (s)
-changes = (T / dt) * (1 - kap)  # expected re-decisions over the event
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(kap, hold, color="black", lw=2)
-ax.set_xlabel(r"Persistence $\kappa$", fontsize=fs)
-ax.set_ylabel("Mean time a target is kept [s]", fontsize=fs)
+fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
+ax.plot(kap, hold, color=pal[5], lw=2.5, zorder=3)
+ax.set_xlabel(r"Persistence $\kappa$", fontsize=12, labelpad=8, color="dimgrey")
+ax.set_ylabel("Mean time a target is kept (s)", fontsize=12, labelpad=8, color="dimgrey")
+ax.set_title("Persistence of the chosen opening", fontsize=14, loc="left", pad=7, color="dimgrey")
 ax.set_yscale("log")
 ax.set_ylim(dt, T)
-ax.grid(alpha=0.3, which="both")
 for k in kappas:
     if k >= 1:  # never reconsiders: holding time is the whole event
-        ax.plot(k, T, "o", color="black", ms=8)
-        ax.annotate(r"$\kappa = 1$: keeps the first choice", (k, T), textcoords="offset points", xytext=(-10, -14), ha="right", fontsize=fs - 3)
+        ax.scatter(k, T, s=60, color=pal[2], edgecolors="white", zorder=4)
+        ax.annotate(r"$\kappa = 1$: keeps the first choice", (k, T), textcoords="offset points", xytext=(-10, -14), ha="right", fontsize=10, color="dimgrey")
         continue
-    ax.plot(k, dt / (1 - k), "o", color="black", ms=8)
+    ax.scatter(k, dt / (1 - k), s=60, color=pal[2], edgecolors="white", zorder=4)
     ax.annotate(
         rf"$\kappa = {k}$: {dt / (1 - k):.0f} s, ~{(T / dt) * (1 - k):.0f} changes in {T} s",
-        (k, dt / (1 - k)), textcoords="offset points", xytext=(-10, 12), ha="right", fontsize=fs - 3,
+        (k, dt / (1 - k)), textcoords="offset points", xytext=(-10, 12), ha="right", fontsize=10, color="dimgrey",
     )
-ax.tick_params(labelsize=fs - 2)
-fig.tight_layout()
-fig.savefig("exit_persistence.pdf", bbox_inches="tight")
+ax.tick_params(axis="both", which="both", length=0, labelcolor="dimgrey")
+ax.grid(False)
+ax.grid(axis="y", which="major", alpha=0.7, linewidth=1)
+sns.despine(left=True, bottom=True)
+ax.patch.set_edgecolor("lightgrey")
+ax.patch.set_linewidth(0.8)
+print(save_figure(fig, "exit_persistence.pdf"))
 plt.close(fig)
-print("exit_persistence.pdf")
-
