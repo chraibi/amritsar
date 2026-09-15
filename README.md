@@ -249,10 +249,16 @@ project/
 
 ## Citation
 
-If you use this simulation in your research, please cite:
+If you use this software, cite the article and the software release (see also `CITATION.cff`):
 
 ```
-TBD
+Chraibi, M., Konya, K., Üsten, E. (2026). Crowd Dynamics in Historical Perspective:
+Reframing the Amritsar Massacre through Agent-Based Modelling and Social Psychology.
+Safety Science, under review (manuscript SAFETY-D-26-02824).
+
+Chraibi, M. (2026). chraibi/amritsar: Reframing the Amritsar Massacre through
+Agent-Based Modelling and Social Psychology (v2.0). Zenodo.
+https://doi.org/10.5281/zenodo.16264825  (DOI of v1.0; replace with the v2.0 DOI once minted)
 ```
 
 ## License

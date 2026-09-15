@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using the metadata below, and the article under preferred-citation.
+type: software
+title: "chraibi/amritsar: Reframing the Amritsar Massacre through Agent-Based Modelling and Social Psychology"
+authors:
+  - family-names: Chraibi
+    given-names: Mohcine
+    email: m.chraibi@fz-juelich.de
+    affiliation: Civil Safety Research, Forschungszentrum Jülich GmbH
+version: v2.0
+date-released: 2026-09-15
+license: MIT
+repository-code: https://github.com/chraibi/amritsar
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.16264825
+    description: Zenodo record of release v1.0 (submitted version)
+keywords:
+  - agent-based modelling
+  - crowd dynamics
+  - JuPedSim
+  - Jallianwala Bagh
+  - Amritsar massacre
+preferred-citation:
+  type: article
+  title: "Crowd Dynamics in Historical Perspective: Reframing the Amritsar Massacre through Agent-Based Modelling and Social Psychology"
+  authors:
+    - family-names: Chraibi
+      given-names: Mohcine
+      affiliation: Civil Safety Research, Forschungszentrum Jülich GmbH
+    - family-names: Konya
+      given-names: Krisztina
+      affiliation: Civil Safety Research, Forschungszentrum Jülich GmbH
+    - family-names: Üsten
+      given-names: Ezel
+      affiliation: Civil Safety Research, Forschungszentrum Jülich GmbH
+  year: 2026
+  journal: Safety Science
+  notes: Revised version of manuscript SAFETY-D-26-02824, under review
