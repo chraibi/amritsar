@@ -153,7 +153,8 @@ JOBS=64 ./reproduce.sh 2>&1 | tee reproduce.out
 `results.zip` and `reproduce.out` are the artefacts to archive; `environment.txt` inside the
 zip must name the tagged commit, or a commit that differs from it only in files that the
 simulation does not read, with `0 modified files`. The archived closing run names commit
-2d3eb16; v2.0 adds only CITATION.cff, this README and the pinned `requirements.txt`.
+2d3eb16; v2.0 adds only CITATION.cff, this README, the CI configuration and the pinned
+`requirements.txt`.
 
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
 main results): `hits_0p5`, `hits_1p5` (0.5 and 1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
