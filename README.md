@@ -151,7 +151,9 @@ JOBS=64 ./reproduce.sh 2>&1 | tee reproduce.out
 ```
 
 `results.zip` and `reproduce.out` are the artefacts to archive; `environment.txt` inside the
-zip must name the tagged commit with `0 modified files`.
+zip must name the tagged commit, or a commit that differs from it only in files that the
+simulation does not read, with `0 modified files`. The archived closing run names commit
+2d3eb16; v2.0 adds only CITATION.cff, this README and the pinned `requirements.txt`.
 
 `reproduce.sh` runs all sweeps, each defined by a `config_<name>.json` (`config.json` for the
 main results): `hits_0p5`, `hits_1p5` (0.5 and 1.5 hits per round), `open_gates_w3`, `open_gates_w4` (wider
@@ -175,7 +177,8 @@ results.zip                                         all of the above except the 
 ```
 
 Runs are seeded (`global_seed` in the config) and reproducible for a fixed jupedsim
-version, which is pinned in `requirements.txt`. The results reported in the article
+version. `requirements.txt` pins every package to the versions of the closing run. The
+results reported in the article
 were produced with the tagged release (see Citation) by exactly this command;
 `environment.txt` in the archived results records the commit and package versions.
 
