@@ -8,10 +8,16 @@ authors:
     email: m.chraibi@fz-juelich.de
     affiliation: Civil Safety Research, Forschungszentrum Jülich GmbH
 version: v2.0
-date-released: 2026-09-15
+date-released: 2026-09-18
 license: MIT
 repository-code: https://github.com/chraibi/amritsar
 identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22826940
+    description: Zenodo record of release v2.0 (revised version)
+  - type: doi
+    value: 10.5281/zenodo.16264824
+    description: Zenodo concept DOI, resolves to the latest release
   - type: doi
     value: 10.5281/zenodo.16264825
     description: Zenodo record of release v1.0 (submitted version)
