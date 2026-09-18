@@ -263,6 +263,10 @@ Safety Science, under review (manuscript SAFETY-D-26-02824).
 Chraibi, M. (2026). chraibi/amritsar: Reframing the Amritsar Massacre through
 Agent-Based Modelling and Social Psychology (v2.0). Zenodo.
 https://doi.org/10.5281/zenodo.22826940
+
+Chraibi, M. (2026). chraibi/amritsar: Reframing the Amritsar Massacre through
+Agent-Based Modelling and Social Psychology, results of the closing run (v2.0 results).
+Zenodo. https://doi.org/10.5281/zenodo.22827245
 ```
 
 ## License

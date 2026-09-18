@@ -16,6 +16,9 @@ identifiers:
     value: 10.5281/zenodo.22826940
     description: Zenodo record of release v2.0 (revised version)
   - type: doi
+    value: 10.5281/zenodo.22827245
+    description: Zenodo record of the archived results (results.zip) of release v2.0
+  - type: doi
     value: 10.5281/zenodo.16264824
     description: Zenodo concept DOI, resolves to the latest release
   - type: doi
