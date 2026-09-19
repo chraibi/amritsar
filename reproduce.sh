@@ -124,6 +124,7 @@ MAIN_CONFIG="$(cd "$(dirname "$(config_path main)")" && pwd)/$(basename "$(confi
 # --- report and one-figure summary
 $PYTHON make_report.py "$RESULTS"
 $PYTHON plot_summary.py "$RESULTS"
+$PYTHON plot_hits_comparison.py "$RESULTS"
 
 # --- archive (pickles, figures, report, environment; trajectories stay on disk)
 ZIP="${RESULTS%/}.zip"

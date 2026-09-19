@@ -19,6 +19,7 @@ cp "$RESULTS/report.csv" "$TMP/"
 PKL="$TMP/main/sweep_simulation_data_main.pkl"
 
 $PYTHON plot_summary.py "$TMP" --for-article >/dev/null
+$PYTHON plot_hits_comparison.py "$TMP" --for-article >/dev/null
 $PYTHON plot_fallen_time_series.py "$PKL" --vary alpha --for-article >/dev/null
 $PYTHON plot_causality_heatmap.py "$PKL" --for-article >/dev/null
 ( cd "$TMP" \
@@ -27,6 +28,7 @@ $PYTHON plot_causality_heatmap.py "$PKL" --for-article >/dev/null
   && $PYTHON "$OLDPWD/plot_exit_model.py" "$OLDPWD/config.json" --for-article ) >/dev/null
 
 cp "$TMP/summary.pdf" "$FIGS/results_summary.pdf"
+cp "$TMP/hits_comparison.pdf" "$FIGS/results_hits.pdf"
 for f in hazard_field shielding_effect exit_choice_map exit_persistence; do
   cp "$TMP/$f.pdf" "$FIGS/$f.pdf"
 done
